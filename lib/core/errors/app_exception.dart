@@ -5,6 +5,7 @@ enum AppErrorType {
   notFound,
   accessDenied,
   authRequired,
+  unsupported,
   parsing,
   image,
   cancelled,
@@ -35,6 +36,8 @@ class AppException implements Exception {
         return 'Akses ditolak oleh sumber.';
       case AppErrorType.authRequired:
         return 'Sumber ini membutuhkan login.';
+      case AppErrorType.unsupported:
+        return 'Fitur ini tidak tersedia di sumber ini.';
       case AppErrorType.parsing:
         return 'Data dari sumber tidak dapat dibaca.';
       case AppErrorType.image:
