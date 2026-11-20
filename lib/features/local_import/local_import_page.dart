@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/routes.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/cbz_extractor.dart';
 import '../../data/local/local_providers.dart';
@@ -145,7 +146,9 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
               return ListTile(
                 leading: _Cover(coverUrl: comic.coverUrl),
                 title: Text(comic.title),
-                onTap: () => context.push('/comic/${comic.remoteId}'),
+                onTap: () => context.push(
+                  AppRoutes.comic(comic.sourceId, comic.remoteId),
+                ),
               );
             },
           );
