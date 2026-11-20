@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/utils/natural_compare.dart';
 import '../../domain/entities/entity_id.dart';
 import '../database/app_database.dart';
 import 'cbz_extractor.dart';
@@ -49,6 +50,14 @@ class ImportedBatch {
   String get comicId => makeEntityId(localSourceId, comicRemoteId);
 }
 
+/// Ringkasan komik lokal untuk pilihan di dialog impor.
+class LocalComicSummary {
+  const LocalComicSummary({required this.remoteId, required this.title});
+
+  final String remoteId;
+  final String title;
+}
+
 class _CreatedChapter {
   const _CreatedChapter({
     required this.key,
@@ -65,7 +74,7 @@ class _CreatedChapter {
   final String firstPage;
 }
 
-/// Mengimpor CBZ milik pengguna ke penyimpanan aplikasi dan database.
+/// Mengimpor dan mengelola komik lokal di penyimpanan aplikasi dan database.
 class LocalLibrary {
   LocalLibrary({
     required AppDatabase database,
@@ -80,6 +89,18 @@ class LocalLibrary {
   /// Daftar folder berisi gambar di dalam arsip (untuk memutuskan pemisahan).
   Future<List<ArchiveGroup>> inspectArchive(File file) =>
       extractor.listGroups(file);
+
+  /// Semua komik lokal, diurutkan menurut judul.
+  Future<List<LocalComicSummary>> listComics() async {
+    final rows = await (_db.select(
+      _db.comics,
+    )..where((t) => t.sourceId.equals(localSourceId))).get();
+    final list = [
+      for (final row in rows)
+        LocalComicSummary(remoteId: row.remoteId, title: row.title),
+    ]..sort((a, b) => naturalCompare(a.title, b.title));
+    return list;
+  }
 
   /// Jika [comicRemoteId] kosong, komik baru dibuat. Jika diisi, chapter
   /// ditambahkan ke komik yang sudah ada.
@@ -231,6 +252,173 @@ class LocalLibrary {
           ),
       ],
     );
+  }
+
+  /// Menghapus satu chapter beserta berkas gambarnya. Jika chapter itu
+  /// memegang sampul, sampul dipindah ke chapter yang tersisa (atau kosong).
+  Future<void> deleteChapter({
+    required String comicRemoteId,
+    required String chapterRemoteId,
+  }) async {
+    final comicId = makeEntityId(localSourceId, comicRemoteId);
+    final chapterId = makeEntityId(localSourceId, chapterRemoteId);
+
+    final chapter =
+        await (_db.select(
+              _db.chapters,
+            )..where((t) => t.id.equals(chapterId) & t.comicId.equals(comicId)))
+            .getSingleOrNull();
+    if (chapter == null) {
+      throw ArgumentError.value(
+        chapterRemoteId,
+        'chapterRemoteId',
+        'Chapter tidak ditemukan',
+      );
+    }
+    final comic = await (_db.select(
+      _db.comics,
+    )..where((t) => t.id.equals(comicId))).getSingle();
+
+    final cover = comic.coverUrl;
+    final coverInDeleted =
+        cover != null && p.posix.dirname(cover) == chapter.chapterUrl;
+    final replacement = coverInDeleted
+        ? await _coverFromRemaining(comicId, chapterId)
+        : null;
+
+    await _db.transaction(() async {
+      await (_db.delete(
+        _db.chapters,
+      )..where((t) => t.id.equals(chapterId))).go();
+      if (coverInDeleted) {
+        await (_db.update(_db.comics)..where((t) => t.id.equals(comicId)))
+            .write(ComicsCompanion(coverUrl: Value(replacement)));
+      }
+    });
+
+    await _deleteIfExists(await layout.resolveDirectory(chapter.chapterUrl));
+  }
+
+  /// Menghapus komik, semua chapter-nya, dan seluruh berkasnya. Data di
+  /// database dihapus lebih dulu: jika ditolak (misalnya masih ada bookmark),
+  /// tidak ada berkas yang terhapus.
+  Future<void> deleteComic(String comicRemoteId) async {
+    final comicId = makeEntityId(localSourceId, comicRemoteId);
+    final comic = await (_db.select(
+      _db.comics,
+    )..where((t) => t.id.equals(comicId))).getSingleOrNull();
+    if (comic == null) {
+      throw ArgumentError.value(
+        comicRemoteId,
+        'comicRemoteId',
+        'Komik tidak ditemukan',
+      );
+    }
+
+    await _db.transaction(() async {
+      await (_db.delete(
+        _db.chapters,
+      )..where((t) => t.comicId.equals(comicId))).go();
+      await (_db.delete(_db.comics)..where((t) => t.id.equals(comicId))).go();
+    });
+
+    await _deleteIfExists(
+      await layout.resolveDirectory(p.posix.join('comics', comicRemoteId)),
+    );
+  }
+
+  /// Menjadikan sebuah halaman chapter sebagai sampul komik.
+  Future<void> setCover({
+    required String comicRemoteId,
+    required String chapterRemoteId,
+    required String pageFileName,
+  }) async {
+    final looksSafe =
+        pageFileName.isNotEmpty &&
+        pageFileName == p.basename(pageFileName) &&
+        !pageFileName.contains('\\') &&
+        !pageFileName.contains('/') &&
+        CbzExtractor.imageExtensions.contains(
+          p.extension(pageFileName).toLowerCase(),
+        );
+    if (!looksSafe) {
+      throw ArgumentError.value(
+        pageFileName,
+        'pageFileName',
+        'Nama berkas halaman tidak valid',
+      );
+    }
+
+    final comicId = makeEntityId(localSourceId, comicRemoteId);
+    final chapterId = makeEntityId(localSourceId, chapterRemoteId);
+    final chapter =
+        await (_db.select(
+              _db.chapters,
+            )..where((t) => t.id.equals(chapterId) & t.comicId.equals(comicId)))
+            .getSingleOrNull();
+    if (chapter == null) {
+      throw ArgumentError.value(
+        chapterRemoteId,
+        'chapterRemoteId',
+        'Chapter tidak ditemukan pada komik ini',
+      );
+    }
+
+    final relative = p.posix.join(chapter.chapterUrl, pageFileName);
+    final file = await layout.resolveFile(relative);
+    if (!await file.exists()) {
+      throw ArgumentError.value(
+        pageFileName,
+        'pageFileName',
+        'Halaman tidak ditemukan',
+      );
+    }
+
+    await (_db.update(_db.comics)..where((t) => t.id.equals(comicId))).write(
+      ComicsCompanion(coverUrl: Value(relative)),
+    );
+  }
+
+  Future<String?> _coverFromRemaining(
+    String comicId,
+    String excludedChapterId,
+  ) async {
+    final rows =
+        (await (_db.select(
+              _db.chapters,
+            )..where((t) => t.comicId.equals(comicId))).get())
+            .where((row) => row.id != excludedChapterId)
+            .toList()
+          ..sort((a, b) {
+            final an = a.chapterNumber;
+            final bn = b.chapterNumber;
+            if (an != null && bn != null && an != bn) return an.compareTo(bn);
+            return naturalCompare(a.title, b.title);
+          });
+
+    for (final row in rows) {
+      final cover = await _firstPageOf(row.chapterUrl);
+      if (cover != null) return cover;
+    }
+    return null;
+  }
+
+  Future<String?> _firstPageOf(String relativeDirectory) async {
+    final directory = await layout.resolveDirectory(relativeDirectory);
+    if (!await directory.exists()) return null;
+
+    final names = <String>[];
+    await for (final entity in directory.list()) {
+      if (entity is File &&
+          CbzExtractor.imageExtensions.contains(
+            p.extension(entity.path).toLowerCase(),
+          )) {
+        names.add(p.basename(entity.path));
+      }
+    }
+    if (names.isEmpty) return null;
+    names.sort(naturalCompare);
+    return p.posix.join(relativeDirectory, names.first);
   }
 
   Future<void> _deleteIfExists(Directory directory) async {

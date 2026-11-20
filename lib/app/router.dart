@@ -3,9 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../features/comic_detail/comic_detail_page.dart';
+import '../features/comic_detail/cover_picker_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/home/home_page.dart';
-import '../features/local_import/local_import_page.dart';
 import '../shared/widgets/placeholder_page.dart';
 import 'routes.dart';
 import 'shell/main_shell.dart';
@@ -73,14 +73,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
-        path: AppRoutes.localImport,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (c, s) => const LocalImportPage(),
-      ),
-      GoRoute(
         path: AppRoutes.comicPattern,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (c, s) => ComicDetailPage(
+          sourceId: s.pathParameters['sourceId']!,
+          comicId: s.pathParameters['comicId']!,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.coverPickerPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (c, s) => CoverPickerPage(
           sourceId: s.pathParameters['sourceId']!,
           comicId: s.pathParameters['comicId']!,
         ),

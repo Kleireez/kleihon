@@ -9,6 +9,7 @@ import '../../domain/entities/source_capability.dart';
 import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/comic_providers.dart';
 import '../../shared/widgets/comic_grid_tile.dart';
+import '../local_import/local_import_flow.dart';
 import 'home_providers.dart';
 
 class HomePage extends ConsumerWidget {
@@ -28,9 +29,9 @@ class HomePage extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            tooltip: 'Perpustakaan lokal',
-            onPressed: () => context.push(AppRoutes.localImport),
-            icon: const Icon(Icons.folder_open),
+            tooltip: 'Impor CBZ',
+            onPressed: () => importLocalComic(context, ref),
+            icon: const Icon(Icons.upload_file),
           ),
           IconButton(
             tooltip: 'Cari',
@@ -74,7 +75,7 @@ class HomePage extends ConsumerWidget {
             _LatestSection(
               value: latest,
               onRetry: () => ref.invalidate(homeLatestProvider),
-              onImport: () => context.push(AppRoutes.localImport),
+              onImport: () => importLocalComic(context, ref),
               onOpen: (comic) =>
                   context.push(AppRoutes.comic(comic.sourceId, comic.remoteId)),
             ),

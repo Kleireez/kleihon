@@ -7,6 +7,7 @@ import '../../domain/entities/source_capability.dart';
 import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/comic_providers.dart';
 import '../../shared/widgets/comic_grid_tile.dart';
+import '../local_import/local_import_flow.dart';
 import 'explore_controller.dart';
 
 class ExplorePage extends ConsumerStatefulWidget {
@@ -27,6 +28,11 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     super.dispose();
   }
 
+  void _import() {
+    _searchFocus.unfocus();
+    importLocalComic(context, ref);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(exploreControllerProvider);
@@ -41,12 +47,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         title: const Text('Explore'),
         actions: [
           IconButton(
-            tooltip: 'Perpustakaan lokal',
-            onPressed: () {
-              _searchFocus.unfocus();
-              context.push(AppRoutes.localImport);
-            },
-            icon: const Icon(Icons.folder_open),
+            tooltip: 'Impor CBZ',
+            onPressed: _import,
+            icon: const Icon(Icons.upload_file),
           ),
         ],
         bottom: canSearch
@@ -119,7 +122,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             ? 'Tidak ada hasil untuk "${state.query}".'
             : 'Belum ada komik.',
         actionLabel: hasQuery ? null : 'Impor komik',
-        onAction: hasQuery ? null : () => context.push(AppRoutes.localImport),
+        onAction: hasQuery ? null : _import,
       );
     }
 

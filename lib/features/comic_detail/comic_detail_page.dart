@@ -4,11 +4,17 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
+import '../../core/utils/app_logger.dart';
 import '../../core/utils/format_date.dart';
+import '../../data/local/local_library_layout.dart';
+import '../../data/local/local_providers.dart';
 import '../../domain/entities/chapter.dart';
 import '../../domain/entities/comic.dart';
+import '../../shared/providers/library_revision_provider.dart';
 import '../../shared/widgets/comic_cover.dart';
 import 'comic_detail_providers.dart';
+
+enum _ComicAction { cover, delete }
 
 class ComicDetailPage extends ConsumerStatefulWidget {
   const ComicDetailPage({
@@ -27,23 +33,149 @@ class ComicDetailPage extends ConsumerStatefulWidget {
 class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   bool _newestFirst = true;
 
+  /// Setelah komik dihapus, layar dikosongkan supaya tidak sempat
+  /// menampilkan error "tidak ditemukan" saat transisi kembali.
+  bool _deleted = false;
+
   ComicKey get _key => (sourceId: widget.sourceId, comicId: widget.comicId);
+
+  bool get _isLocal => widget.sourceId == localSourceId;
 
   void _open(Chapter chapter) {
     context.push(AppRoutes.reader(chapter.sourceId, chapter.remoteId));
   }
 
+  Future<bool> _confirmDelete({
+    required String title,
+    required String message,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.error,
+                foregroundColor: scheme.onError,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  Future<void> _deleteComic(ComicDetailData data) async {
+    final confirmed = await _confirmDelete(
+      title: 'Hapus komik?',
+      message:
+          '"${data.comic.title}" beserta ${data.chapters.length} chapter dan '
+          'semua gambarnya akan dihapus dari perangkat. Tindakan ini tidak '
+          'bisa dibatalkan.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final revision = ref.read(libraryRevisionProvider.notifier);
+    final library = ref.read(localLibraryProvider);
+
+    try {
+      await library.deleteComic(widget.comicId);
+    } catch (e, s) {
+      appLogger.e('Gagal menghapus komik', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal menghapus komik.')),
+      );
+      return;
+    }
+
+    if (mounted) setState(() => _deleted = true);
+    revision.bump();
+    if (mounted) context.pop();
+    messenger.showSnackBar(const SnackBar(content: Text('Komik dihapus.')));
+  }
+
+  Future<void> _deleteChapter(Chapter chapter) async {
+    final confirmed = await _confirmDelete(
+      title: 'Hapus chapter?',
+      message:
+          '"${chapter.title}" dan semua gambarnya akan dihapus dari '
+          'perangkat. Tindakan ini tidak bisa dibatalkan.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final revision = ref.read(libraryRevisionProvider.notifier);
+    final library = ref.read(localLibraryProvider);
+
+    try {
+      await library.deleteChapter(
+        comicRemoteId: widget.comicId,
+        chapterRemoteId: chapter.remoteId,
+      );
+    } catch (e, s) {
+      appLogger.e('Gagal menghapus chapter', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal menghapus chapter.')),
+      );
+      return;
+    }
+
+    revision.bump();
+    messenger.showSnackBar(const SnackBar(content: Text('Chapter dihapus.')));
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_deleted) return const Scaffold();
+
     final detail = ref.watch(comicDetailProvider(_key));
+    final data = detail.value;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          detail.value?.comic.title ?? 'Detail komik',
+          data?.comic.title ?? 'Detail komik',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          if (_isLocal && data != null)
+            PopupMenuButton<_ComicAction>(
+              tooltip: 'Opsi komik',
+              onSelected: (action) {
+                switch (action) {
+                  case _ComicAction.cover:
+                    context.push(
+                      AppRoutes.coverPicker(widget.sourceId, widget.comicId),
+                    );
+                  case _ComicAction.delete:
+                    _deleteComic(data);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _ComicAction.cover,
+                  child: Text('Pilih sampul'),
+                ),
+                PopupMenuItem(
+                  value: _ComicAction.delete,
+                  child: Text('Hapus komik'),
+                ),
+              ],
+            ),
+        ],
       ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -118,7 +250,18 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                   subtitle: published == null
                       ? null
                       : Text(formatShortDate(published)),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: _isLocal
+                      ? PopupMenuButton<String>(
+                          tooltip: 'Opsi chapter',
+                          onSelected: (_) => _deleteChapter(chapter),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Hapus chapter'),
+                            ),
+                          ],
+                        )
+                      : const Icon(Icons.chevron_right),
                   onTap: () => _open(chapter),
                 );
               },
