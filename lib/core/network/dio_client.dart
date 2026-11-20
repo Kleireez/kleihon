@@ -9,14 +9,14 @@ import '../utils/app_logger.dart';
 
 class DioClient {
   DioClient({String? baseUrl})
-      : dio = Dio(
-          BaseOptions(
-            baseUrl: baseUrl ?? '',
-            connectTimeout: const Duration(seconds: 15),
-            receiveTimeout: const Duration(seconds: 30),
-            sendTimeout: const Duration(seconds: 15),
-          ),
-        ) {
+    : dio = Dio(
+        BaseOptions(
+          baseUrl: baseUrl ?? '',
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 15),
+        ),
+      ) {
     dio.interceptors.add(_RetryInterceptor(dio));
     if (kDebugMode) {
       dio.interceptors.add(_LogInterceptor());
@@ -123,7 +123,10 @@ class _LogInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     appLogger.d('HTTP ${response.statusCode} ${response.requestOptions.uri}');
     handler.next(response);
   }

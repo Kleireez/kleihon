@@ -8,12 +8,12 @@ class AppTheme {
 
   // Tema sementara. Desain final dikerjakan di Phase 8.
   static ThemeData get dark => ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: background,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seed,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      );
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: background,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: Brightness.dark,
+    ),
+    useMaterial3: true,
+  );
 }

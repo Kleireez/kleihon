@@ -25,18 +25,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   /// Untuk test (misalnya database in-memory).
-    AppDatabase.forTesting(super.executor);
+  AppDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 1;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        beforeOpen: (details) async {
-          // Wajib agar relasi antar tabel ditegakkan.
-          await customStatement('PRAGMA foreign_keys = ON');
-        },
-      );
+    beforeOpen: (details) async {
+      // Wajib agar relasi antar tabel ditegakkan.
+      await customStatement('PRAGMA foreign_keys = ON');
+    },
+  );
 }
 
 LazyDatabase _openConnection() {

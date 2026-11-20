@@ -12,11 +12,7 @@ enum AppErrorType {
 }
 
 class AppException implements Exception {
-  const AppException(
-    this.type, {
-    this.statusCode,
-    this.debugMessage,
-  });
+  const AppException(this.type, {this.statusCode, this.debugMessage});
 
   final AppErrorType type;
   final int? statusCode;

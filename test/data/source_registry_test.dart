@@ -21,11 +21,11 @@ class _FakeSource extends ComicSource {
 
   @override
   Future<Comic> getComicDetail(String comicId) async => Comic(
-        sourceId: id,
-        remoteId: comicId,
-        title: 'Test',
-        sourceUrl: 'https://example.invalid/$comicId',
-      );
+    sourceId: id,
+    remoteId: comicId,
+    title: 'Test',
+    sourceUrl: 'https://example.invalid/$comicId',
+  );
 
   @override
   Future<PagedResult<Chapter>> getChapters(String comicId, int page) async =>

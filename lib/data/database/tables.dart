@@ -49,8 +49,9 @@ class Bookmarks extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get comicId => text().unique().references(Comics, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  IntColumn get readingStatus => intEnum<ReadingStatus>()
-      .withDefault(Constant(ReadingStatus.unread.index))();
+  IntColumn get readingStatus => intEnum<ReadingStatus>().withDefault(
+    Constant(ReadingStatus.unread.index),
+  )();
 
   /// Untuk kategori "Diikuti untuk update".
   BoolColumn get followUpdates =>
@@ -68,8 +69,8 @@ class ReadingProgressEntries extends Table {
 
   @override
   List<Set<Column<Object>>> get uniqueKeys => [
-        {comicId, chapterId},
-      ];
+    {comicId, chapterId},
+  ];
 }
 
 /// Satu baris per komik: chapter terakhir yang dibaca.
@@ -85,8 +86,9 @@ class Downloads extends Table {
   TextColumn get comicId => text().references(Comics, #id)();
   TextColumn get chapterId => text().unique()();
   TextColumn get localPath => text()();
-  IntColumn get downloadStatus => intEnum<DownloadStatus>()
-      .withDefault(Constant(DownloadStatus.queued.index))();
+  IntColumn get downloadStatus => intEnum<DownloadStatus>().withDefault(
+    Constant(DownloadStatus.queued.index),
+  )();
   DateTimeColumn get downloadedAt => dateTime().nullable()();
   IntColumn get fileSize => integer().withDefault(const Constant(0))();
 }

@@ -16,7 +16,9 @@ void main() {
   });
 
   Future<void> insertComic(String id) {
-    return db.into(db.comics).insert(
+    return db
+        .into(db.comics)
+        .insert(
           ComicsCompanion.insert(
             id: id,
             sourceId: 'test',
@@ -29,7 +31,9 @@ void main() {
 
   test('komik dan chapter tersimpan dan terbaca kembali', () async {
     await insertComic('c1');
-    await db.into(db.chapters).insert(
+    await db
+        .into(db.chapters)
+        .insert(
           ChaptersCompanion.insert(
             id: 'ch1',
             comicId: 'c1',
@@ -46,7 +50,9 @@ void main() {
 
   test('menghapus komik ikut menghapus chapter-nya', () async {
     await insertComic('c1');
-    await db.into(db.chapters).insert(
+    await db
+        .into(db.chapters)
+        .insert(
           ChaptersCompanion.insert(
             id: 'ch1',
             comicId: 'c1',
@@ -93,10 +99,9 @@ void main() {
         .into(db.bookmarks)
         .insert(BookmarksCompanion.insert(comicId: 'c1'));
 
-    await (db.update(db.bookmarks)..where((t) => t.comicId.equals('c1')))
-        .write(const BookmarksCompanion(
-      readingStatus: Value(ReadingStatus.reading),
-    ));
+    await (db.update(db.bookmarks)..where((t) => t.comicId.equals('c1'))).write(
+      const BookmarksCompanion(readingStatus: Value(ReadingStatus.reading)),
+    );
 
     final bookmark = await db.select(db.bookmarks).getSingle();
     expect(bookmark.readingStatus, ReadingStatus.reading);

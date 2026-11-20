@@ -2,14 +2,7 @@ import '../../domain/entities/chapter.dart';
 import '../../domain/entities/comic.dart';
 import '../../domain/entities/source_results.dart';
 
-enum SourceCapability {
-  home,
-  latest,
-  popular,
-  search,
-  genres,
-  comicsByGenre,
-}
+enum SourceCapability { home, latest, popular, search, genres, comicsByGenre }
 
 /// Dilempar kalau sumber tidak menyediakan fitur yang diminta.
 class SourceFeatureUnsupported implements Exception {
