@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../shared/providers/library_revision_provider.dart';
 import '../../app/routes.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/cbz_extractor.dart';
 import '../../data/local/local_providers.dart';
 import '../../domain/entities/comic.dart';
+import '../../shared/providers/library_revision_provider.dart';
 
 /// SEMENTARA: daftar komik lokal (halaman 1) untuk memverifikasi impor.
 /// Digantikan oleh katalog sungguhan di Phase 3.
@@ -54,6 +54,29 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
       );
       return;
     }
+    final file = File(path);
+
+    // Periksa isi arsip: berapa folder bergambar di dalamnya.
+    setState(() => _busy = true);
+    int groupCount;
+    try {
+      final groups = await ref.read(localLibraryProvider).inspectArchive(file);
+      groupCount = groups.length;
+    } on LocalImportException catch (e) {
+      appLogger.w('Pemeriksaan arsip gagal: $e');
+      messenger.showSnackBar(SnackBar(content: Text(e.userMessage)));
+      if (mounted) setState(() => _busy = false);
+      return;
+    } catch (e, s) {
+      appLogger.e('Pemeriksaan arsip gagal', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Terjadi kesalahan saat membaca arsip.')),
+      );
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
 
     final existing = ref.read(localComicsProvider).value ?? const <Comic>[];
     final choice = await showDialog<_ImportChoice>(
@@ -64,6 +87,7 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
           '',
         ),
         existing: existing,
+        groupCount: groupCount,
       ),
     );
     if (choice == null || !mounted) return;
@@ -73,14 +97,20 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
       final imported = await ref
           .read(localLibraryProvider)
           .importCbz(
-            file: File(path),
+            file: file,
             comicTitle: choice.title,
             comicRemoteId: choice.existingRemoteId,
+            splitByFolder: choice.splitByFolder,
           );
       ref.invalidate(localComicsProvider);
       ref.read(libraryRevisionProvider.notifier).bump();
       messenger.showSnackBar(
-        SnackBar(content: Text('Berhasil: ${imported.pageCount} halaman.')),
+        SnackBar(
+          content: Text(
+            'Berhasil: ${imported.chapters.length} chapter, '
+            '${imported.pageCount} halaman.',
+          ),
+        ),
       );
     } on LocalImportException catch (e) {
       appLogger.w('Impor gagal: $e');
@@ -110,7 +140,7 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.upload_file),
-        label: Text(_busy ? 'Mengimpor...' : 'Impor CBZ'),
+        label: Text(_busy ? 'Memproses...' : 'Impor CBZ'),
       ),
       body: comics.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -194,17 +224,29 @@ class _Cover extends StatelessWidget {
 }
 
 class _ImportChoice {
-  const _ImportChoice({required this.title, this.existingRemoteId});
+  const _ImportChoice({
+    required this.title,
+    this.existingRemoteId,
+    this.splitByFolder = false,
+  });
 
   final String title;
   final String? existingRemoteId;
+  final bool splitByFolder;
 }
 
 class _ImportDialog extends StatefulWidget {
-  const _ImportDialog({required this.suggestedTitle, required this.existing});
+  const _ImportDialog({
+    required this.suggestedTitle,
+    required this.existing,
+    required this.groupCount,
+  });
 
   final String suggestedTitle;
   final List<Comic> existing;
+
+  /// Jumlah folder bergambar di dalam arsip.
+  final int groupCount;
 
   @override
   State<_ImportDialog> createState() => _ImportDialogState();
@@ -215,6 +257,7 @@ class _ImportDialogState extends State<_ImportDialog> {
     text: widget.suggestedTitle,
   );
   String? _existingRemoteId;
+  bool _split = true;
 
   @override
   void dispose() {
@@ -222,19 +265,29 @@ class _ImportDialogState extends State<_ImportDialog> {
     super.dispose();
   }
 
+  bool get _canSplit => widget.groupCount > 1;
+
   bool get _canSubmit =>
       _existingRemoteId != null || _title.text.trim().isNotEmpty;
 
   void _submit() {
     final remoteId = _existingRemoteId;
+    final split = _canSplit && _split;
     if (remoteId != null) {
       final comic = widget.existing.firstWhere((c) => c.remoteId == remoteId);
       Navigator.pop(
         context,
-        _ImportChoice(title: comic.title, existingRemoteId: remoteId),
+        _ImportChoice(
+          title: comic.title,
+          existingRemoteId: remoteId,
+          splitByFolder: split,
+        ),
       );
     } else {
-      Navigator.pop(context, _ImportChoice(title: _title.text.trim()));
+      Navigator.pop(
+        context,
+        _ImportChoice(title: _title.text.trim(), splitByFolder: split),
+      );
     }
   }
 
@@ -242,34 +295,44 @@ class _ImportDialogState extends State<_ImportDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Impor CBZ'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.existing.isNotEmpty)
-            DropdownButton<String?>(
-              isExpanded: true,
-              value: _existingRemoteId,
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('Komik baru'),
-                ),
-                for (final comic in widget.existing)
-                  DropdownMenuItem<String?>(
-                    value: comic.remoteId,
-                    child: Text(comic.title, overflow: TextOverflow.ellipsis),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.existing.isNotEmpty)
+              DropdownButton<String?>(
+                isExpanded: true,
+                value: _existingRemoteId,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Komik baru'),
                   ),
-              ],
-              onChanged: (value) => setState(() => _existingRemoteId = value),
-            ),
-          if (_existingRemoteId == null)
-            TextField(
-              controller: _title,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Judul komik'),
-              onChanged: (_) => setState(() {}),
-            ),
-        ],
+                  for (final comic in widget.existing)
+                    DropdownMenuItem<String?>(
+                      value: comic.remoteId,
+                      child: Text(comic.title, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _existingRemoteId = value),
+              ),
+            if (_existingRemoteId == null)
+              TextField(
+                controller: _title,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Judul komik'),
+                onChanged: (_) => setState(() {}),
+              ),
+            if (_canSplit)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _split,
+                onChanged: (value) => setState(() => _split = value),
+                title: Text('Pisahkan menjadi ${widget.groupCount} chapter'),
+                subtitle: const Text('Satu chapter per folder di dalam arsip.'),
+              ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

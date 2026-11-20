@@ -56,6 +56,22 @@ class CbzLimits {
   final int maxTotalBytes;
 }
 
+/// Sekelompok halaman yang berada di folder yang sama di dalam arsip.
+class ArchiveGroup {
+  const ArchiveGroup({
+    required this.path,
+    required this.title,
+    required this.pageCount,
+  });
+
+  /// Path folder di dalam arsip. Kosong berarti akar arsip.
+  final String path;
+
+  /// Nama folder terakhir. Kosong untuk akar arsip.
+  final String title;
+  final int pageCount;
+}
+
 class ExtractionResult {
   const ExtractionResult({
     required this.directory,
@@ -79,10 +95,56 @@ class CbzExtractor {
 
   final CbzLimits limits;
 
+  /// Mengelompokkan halaman berdasarkan folder di dalam arsip, diurutkan
+  /// secara alami. Tidak ada data gambar yang dibaca.
+  Future<List<ArchiveGroup>> listGroups(File source) async {
+    InputFileStream? input;
+    try {
+      input = InputFileStream(source.path);
+      final archive = _decode(input);
+      if (archive.isEmpty) {
+        throw const LocalImportException(
+          LocalImportError.notAnArchive,
+          debugMessage: 'Arsip kosong',
+        );
+      }
+
+      final pages = _pickPages(archive).pages;
+      if (pages.isEmpty) {
+        throw const LocalImportException(LocalImportError.noImages);
+      }
+
+      final counts = <String, int>{};
+      for (final entry in pages) {
+        final dir = _parentOf(entry.name);
+        counts[dir] = (counts[dir] ?? 0) + 1;
+      }
+
+      final paths = counts.keys.toList()..sort(naturalCompare);
+      return [
+        for (final path in paths)
+          ArchiveGroup(
+            path: path,
+            title: path.isEmpty ? '' : p.posix.basename(path),
+            pageCount: counts[path]!,
+          ),
+      ];
+    } on FileSystemException catch (e) {
+      throw LocalImportException(
+        LocalImportError.ioFailure,
+        debugMessage: e.toString(),
+      );
+    } finally {
+      await input?.close();
+    }
+  }
+
   /// [destination] tidak boleh sudah ada. Jika gagal, tidak ada yang tertinggal.
+  /// Jika [groupPath] diisi, hanya halaman di folder itu yang diekstrak.
   Future<ExtractionResult> extract({
     required File source,
     required Directory destination,
+    String? groupPath,
   }) async {
     if (await destination.exists()) {
       throw ArgumentError.value(
@@ -110,7 +172,12 @@ class CbzExtractor {
       }
 
       final picked = _pickPages(archive);
-      final pages = picked.pages;
+      final pages = groupPath == null
+          ? picked.pages
+          : [
+              for (final entry in picked.pages)
+                if (_parentOf(entry.name) == groupPath) entry,
+            ];
       if (pages.isEmpty) {
         throw const LocalImportException(LocalImportError.noImages);
       }
@@ -206,6 +273,12 @@ class CbzExtractor {
     }
     pages.sort((a, b) => naturalCompare(a.name, b.name));
     return (pages: pages, skipped: skipped);
+  }
+
+  String _parentOf(String name) {
+    final normalized = name.replaceAll('\\', '/');
+    final parent = p.posix.dirname(normalized);
+    return parent == '.' ? '' : parent;
   }
 
   bool _isAcceptablePage(String name) {

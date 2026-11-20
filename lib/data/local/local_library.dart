@@ -38,27 +38,63 @@ class ImportedChapter {
   String get chapterId => makeEntityId(localSourceId, chapterRemoteId);
 }
 
+/// Hasil satu kali impor: satu komik dan satu atau lebih chapter baru.
+class ImportedBatch {
+  const ImportedBatch({required this.comicRemoteId, required this.chapters});
+
+  final String comicRemoteId;
+  final List<ImportedChapter> chapters;
+
+  int get pageCount => chapters.fold(0, (sum, c) => sum + c.pageCount);
+  String get comicId => makeEntityId(localSourceId, comicRemoteId);
+}
+
+class _CreatedChapter {
+  const _CreatedChapter({
+    required this.key,
+    required this.relative,
+    required this.title,
+    required this.pageCount,
+    required this.firstPage,
+  });
+
+  final String key;
+  final String relative;
+  final String title;
+  final int pageCount;
+  final String firstPage;
+}
+
 /// Mengimpor CBZ milik pengguna ke penyimpanan aplikasi dan database.
 class LocalLibrary {
   LocalLibrary({
     required AppDatabase database,
-    required this._layout,
-    this._extractor = const CbzExtractor(),
+    required this.layout,
+    this.extractor = const CbzExtractor(),
   }) : _db = database;
 
   final AppDatabase _db;
-  final LocalLibraryLayout _layout;
-  final CbzExtractor _extractor;
+  final LocalLibraryLayout layout;
+  final CbzExtractor extractor;
+
+  /// Daftar folder berisi gambar di dalam arsip (untuk memutuskan pemisahan).
+  Future<List<ArchiveGroup>> inspectArchive(File file) =>
+      extractor.listGroups(file);
 
   /// Jika [comicRemoteId] kosong, komik baru dibuat. Jika diisi, chapter
   /// ditambahkan ke komik yang sudah ada.
+  /// Jika [splitByFolder] true dan arsip berisi lebih dari satu folder
+  /// bergambar, tiap folder menjadi satu chapter. Selain itu semua halaman
+  /// menjadi satu chapter.
+  /// Semua atau tidak sama sekali: jika ada yang gagal, tidak ada yang tersisa.
   /// Melempar [LocalImportException] jika arsip bermasalah.
-  Future<ImportedChapter> importCbz({
+  Future<ImportedBatch> importCbz({
     required File file,
     required String comicTitle,
     String? comicRemoteId,
     String? chapterTitle,
     double? chapterNumber,
+    bool splitByFolder = false,
   }) async {
     final title = comicTitle.trim();
     if (title.isEmpty) {
@@ -86,24 +122,61 @@ class LocalLibrary {
       }
     }
 
-    final chapterKey = newLocalId();
-    final chapterId = makeEntityId(localSourceId, chapterKey);
-    final relative = LocalLibraryLayout.chapterRelativePath(
-      comicKey,
-      chapterKey,
-    );
-    final directory = await _layout.resolveDirectory(relative);
+    // null berarti semua halaman menjadi satu chapter.
+    final List<ArchiveGroup?> plan;
+    if (splitByFolder) {
+      final groups = await extractor.listGroups(file);
+      plan = groups.length > 1 ? groups : [null];
+    } else {
+      plan = [null];
+    }
 
-    final result = await _extractor.extract(
-      source: file,
-      destination: directory,
-    );
+    final baseName = p.basenameWithoutExtension(file.path);
+    final fallbackTitle = (chapterTitle ?? baseName).trim();
+    final created = <_CreatedChapter>[];
 
-    final name = (chapterTitle ?? p.basenameWithoutExtension(file.path)).trim();
-    final now = DateTime.now();
-    final cover = p.posix.join(relative, p.basename(result.pages.first.path));
+    Future<void> cleanup() async {
+      for (final chapter in created) {
+        await _deleteIfExists(await layout.resolveDirectory(chapter.relative));
+      }
+      if (isNewComic) {
+        await _deleteIfExists(
+          await layout.resolveDirectory(p.posix.join('comics', comicKey)),
+        );
+      }
+    }
 
     try {
+      for (final group in plan) {
+        final chapterKey = newLocalId();
+        final relative = LocalLibraryLayout.chapterRelativePath(
+          comicKey,
+          chapterKey,
+        );
+        final result = await extractor.extract(
+          source: file,
+          destination: await layout.resolveDirectory(relative),
+          groupPath: group?.path,
+        );
+
+        final groupTitle = group?.title.trim() ?? '';
+        created.add(
+          _CreatedChapter(
+            key: chapterKey,
+            relative: relative,
+            title: groupTitle.isEmpty ? fallbackTitle : groupTitle,
+            pageCount: result.pages.length,
+            firstPage: p.basename(result.pages.first.path),
+          ),
+        );
+      }
+
+      final now = DateTime.now();
+      final cover = p.posix.join(
+        created.first.relative,
+        created.first.firstPage,
+      );
+
       await _db.transaction(() async {
         if (isNewComic) {
           await _db
@@ -124,33 +197,39 @@ class LocalLibrary {
               .write(ComicsCompanion(updatedAt: Value(now)));
         }
 
-        await _db
-            .into(_db.chapters)
-            .insert(
-              ChaptersCompanion.insert(
-                id: chapterId,
-                comicId: comicId,
-                title: name.isEmpty ? 'Chapter' : name,
-                chapterUrl: relative,
-                chapterNumber: Value(chapterNumber ?? guessChapterNumber(name)),
-                publishedAt: Value(now),
-              ),
-            );
+        for (final chapter in created) {
+          final number = created.length == 1
+              ? (chapterNumber ?? guessChapterNumber(chapter.title))
+              : guessChapterNumber(chapter.title);
+          await _db
+              .into(_db.chapters)
+              .insert(
+                ChaptersCompanion.insert(
+                  id: makeEntityId(localSourceId, chapter.key),
+                  comicId: comicId,
+                  title: chapter.title.isEmpty ? 'Chapter' : chapter.title,
+                  chapterUrl: chapter.relative,
+                  chapterNumber: Value(number),
+                  publishedAt: Value(now),
+                ),
+              );
+        }
       });
     } catch (_) {
-      await _deleteIfExists(directory);
-      if (isNewComic) {
-        await _deleteIfExists(
-          await _layout.resolveDirectory(p.posix.join('comics', comicKey)),
-        );
-      }
+      await cleanup();
       rethrow;
     }
 
-    return ImportedChapter(
+    return ImportedBatch(
       comicRemoteId: comicKey,
-      chapterRemoteId: chapterKey,
-      pageCount: result.pages.length,
+      chapters: [
+        for (final chapter in created)
+          ImportedChapter(
+            comicRemoteId: comicKey,
+            chapterRemoteId: chapter.key,
+            pageCount: chapter.pageCount,
+          ),
+      ],
     );
   }
 
