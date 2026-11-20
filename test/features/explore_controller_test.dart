@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:kleihon/shared/providers/library_revision_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kleihon/core/errors/app_exception.dart';
@@ -194,5 +195,29 @@ void main() {
     state = container.read(exploreControllerProvider);
     expect(state.moreError, isNull);
     expect(state.items.map((c) => c.remoteId).toList(), ['a', 'b']);
+  });
+  test('daftar dimuat ulang saat perpustakaan berubah', () async {
+    var version = 0;
+    final container = makeContainer(
+      FakeComicSource(
+        'local',
+        capabilities: _caps,
+        onLatest: (page) async => pageOf(['v$version'], page),
+      ),
+    );
+    await settle();
+    expect(
+      container.read(exploreControllerProvider).items.map((c) => c.remoteId),
+      ['v0'],
+    );
+
+    version = 1;
+    container.read(libraryRevisionProvider.notifier).bump();
+    await settle();
+
+    expect(
+      container.read(exploreControllerProvider).items.map((c) => c.remoteId),
+      ['v1'],
+    );
   });
 }

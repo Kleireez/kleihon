@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../shared/providers/library_revision_provider.dart';
 import '../../app/routes.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/cbz_extractor.dart';
@@ -77,6 +78,7 @@ class _LocalImportPageState extends ConsumerState<LocalImportPage> {
             comicRemoteId: choice.existingRemoteId,
           );
       ref.invalidate(localComicsProvider);
+      ref.read(libraryRevisionProvider.notifier).bump();
       messenger.showSnackBar(
         SnackBar(content: Text('Berhasil: ${imported.pageCount} halaman.')),
       );

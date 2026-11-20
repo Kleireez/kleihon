@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/providers/library_revision_provider.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/comic.dart';
 import '../../domain/entities/source_results.dart';
@@ -83,6 +84,7 @@ class ExploreController extends Notifier<ExploreState> {
       _disposed = true;
       _debounce?.cancel();
     });
+    ref.listen<int>(libraryRevisionProvider, (previous, next) => refresh());
     scheduleMicrotask(_loadFirst);
     return const ExploreState(loading: true);
   }
