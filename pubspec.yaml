@@ -7,8 +7,10 @@ environment:
   sdk: ^3.14.0
 
 dependencies:
+  archive: ^4.7.1
   dio: ^5.11.1
   drift: ^2.35.4
+  file_picker: ^13.4.0
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.5.0
