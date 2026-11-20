@@ -27,6 +27,8 @@ abstract class ComicSource {
 
   // Wajib: tanpa ini komik tidak bisa dibaca.
   Future<Comic> getComicDetail(String comicId);
+
+  /// Urutan chapter: dari yang paling awal (urutan baca) ke yang terbaru.
   Future<PagedResult<Chapter>> getChapters(String comicId, int page);
   Future<List<ChapterPage>> getChapterPages(String chapterId);
 

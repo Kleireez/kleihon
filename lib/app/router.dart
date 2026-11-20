@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../features/comic_detail/comic_detail_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/home/home_page.dart';
 import '../features/local_import/local_import_page.dart';
@@ -79,17 +80,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.comicPattern,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (c, s) => PlaceholderPage(
-          title: 'Detail komik',
-          note:
-              'Sumber: ${s.pathParameters['sourceId']}\n'
-              'ID: ${s.pathParameters['comicId']}',
-          actions: [
-            FilledButton(
-              onPressed: () => c.push(AppRoutes.reader('contoh-chapter')),
-              child: const Text('Uji: buka reader'),
-            ),
-          ],
+        builder: (c, s) => ComicDetailPage(
+          sourceId: s.pathParameters['sourceId']!,
+          comicId: s.pathParameters['comicId']!,
         ),
       ),
       GoRoute(
@@ -97,7 +90,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (c, s) => PlaceholderPage(
           title: 'Reader',
-          note: 'Chapter: ${s.pathParameters['chapterId']}',
+          note:
+              'Sumber: ${s.pathParameters['sourceId']}\n'
+              'Chapter: ${s.pathParameters['chapterId']}\n\n'
+              'Reader dibuat di Phase 4.',
         ),
       ),
     ],
