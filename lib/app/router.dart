@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../features/local_import/local_import_page.dart';
 import '../features/home/home_page.dart';
 import '../shared/widgets/placeholder_page.dart';
 import 'shell/main_shell.dart';
@@ -74,6 +75,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '/import',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (c, s) => const LocalImportPage(),
       ),
       GoRoute(
         path: '/comic/:id',

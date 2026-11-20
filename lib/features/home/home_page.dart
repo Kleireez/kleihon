@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/theme/app_theme.dart';
@@ -13,7 +14,14 @@ class HomePage extends StatelessWidget {
           'KleiHon',
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5),
         ),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
+        actions: [
+          IconButton(
+            tooltip: 'Perpustakaan lokal',
+            onPressed: () => context.push('/import'),
+            icon: const Icon(Icons.folder_open),
+          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
+        ],
       ),
       body: const Center(
         child: Column(
