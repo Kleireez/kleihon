@@ -127,22 +127,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   : _buildPages(context, list, neighbors),
             ),
           ),
-          if (_controlsVisible)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _SlidingBar(
+              visible: _controlsVisible,
+              fromTop: true,
               child: _TopBar(
                 comicTitle: detail.value?.comic.title ?? '',
                 chapterTitle: neighbors.current?.title ?? '',
                 onBack: _back,
               ),
             ),
-          if (_controlsVisible)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _SlidingBar(
+              visible: _controlsVisible,
+              fromTop: false,
               child: _BottomBar(
                 label: pageCount == 0
                     ? '-'
@@ -155,6 +160,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     : () => _goTo(neighbors.next!),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -211,6 +217,51 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Lama animasi muncul dan hilangnya kontrol reader.
+const Duration _barAnimation = Duration(milliseconds: 220);
+
+/// Bilah yang meluncur dari tepi layar sambil memudar. Saat tersembunyi,
+/// bilah benar-benar dilepas dari layar (tidak menangkap ketukan).
+class _SlidingBar extends StatelessWidget {
+  const _SlidingBar({
+    required this.visible,
+    required this.fromTop,
+    required this.child,
+  });
+
+  final bool visible;
+  final bool fromTop;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final hiddenOffset = Offset(0, fromTop ? -1 : 1);
+
+    return AnimatedSwitcher(
+      duration: _barAnimation,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: hiddenOffset,
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: visible
+          ? KeyedSubtree(key: const ValueKey('shown'), child: child)
+          : const SizedBox.shrink(key: ValueKey('hidden')),
     );
   }
 }

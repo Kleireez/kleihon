@@ -115,6 +115,22 @@ void main() {
     expect(find.text('Judul k1'), findsNothing);
   });
 
+  testWidgets('kontrol hilang dengan animasi, bukan seketika', (tester) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ListView));
+    await tester.pump(const Duration(milliseconds: 60));
+    // Animasi baru berjalan: kontrol masih ada di layar.
+    expect(find.text('Judul k1'), findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(find.text('Judul k1'), findsNothing);
+  });
+
   testWidgets('tinggi bilah sistem tidak menggeser isi halaman', (
     tester,
   ) async {
