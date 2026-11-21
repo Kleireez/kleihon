@@ -254,8 +254,9 @@ class LocalLibrary {
     );
   }
 
-  /// Menghapus satu chapter beserta berkas gambarnya. Jika chapter itu
-  /// memegang sampul, sampul dipindah ke chapter yang tersisa (atau kosong).
+  /// Menghapus satu chapter beserta berkas gambar, progres, dan riwayatnya.
+  /// Jika chapter itu memegang sampul, sampul dipindah ke chapter yang
+  /// tersisa (atau kosong).
   Future<void> deleteChapter({
     required String comicRemoteId,
     required String chapterRemoteId,
@@ -287,6 +288,14 @@ class LocalLibrary {
         : null;
 
     await _db.transaction(() async {
+      await (_db.delete(_db.readingProgressEntries)..where(
+            (t) => t.comicId.equals(comicId) & t.chapterId.equals(chapterId),
+          ))
+          .go();
+      await (_db.delete(_db.readingHistoryEntries)..where(
+            (t) => t.comicId.equals(comicId) & t.chapterId.equals(chapterId),
+          ))
+          .go();
       await (_db.delete(
         _db.chapters,
       )..where((t) => t.id.equals(chapterId))).go();
@@ -299,9 +308,10 @@ class LocalLibrary {
     await _deleteIfExists(await layout.resolveDirectory(chapter.chapterUrl));
   }
 
-  /// Menghapus komik, semua chapter-nya, dan seluruh berkasnya. Data di
-  /// database dihapus lebih dulu: jika ditolak (misalnya masih ada bookmark),
-  /// tidak ada berkas yang terhapus.
+  /// Menghapus komik, semua chapter, progres, riwayat, dan seluruh berkasnya.
+  /// Data di database dihapus lebih dulu dalam satu transaksi: jika ditolak
+  /// (misalnya masih ada bookmark), tidak ada yang berubah dan tidak ada
+  /// berkas yang terhapus.
   Future<void> deleteComic(String comicRemoteId) async {
     final comicId = makeEntityId(localSourceId, comicRemoteId);
     final comic = await (_db.select(
@@ -316,6 +326,12 @@ class LocalLibrary {
     }
 
     await _db.transaction(() async {
+      await (_db.delete(
+        _db.readingProgressEntries,
+      )..where((t) => t.comicId.equals(comicId))).go();
+      await (_db.delete(
+        _db.readingHistoryEntries,
+      )..where((t) => t.comicId.equals(comicId))).go();
       await (_db.delete(
         _db.chapters,
       )..where((t) => t.comicId.equals(comicId))).go();

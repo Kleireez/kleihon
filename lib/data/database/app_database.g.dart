@@ -1830,6 +1830,30 @@ class $ReadingProgressEntriesTable extends ReadingProgressEntries
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _pageCountMeta = const VerificationMeta(
+    'pageCount',
+  );
+  @override
+  late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
+    'page_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _aspectsJsonMeta = const VerificationMeta(
+    'aspectsJson',
+  );
+  @override
+  late final GeneratedColumn<String> aspectsJson = GeneratedColumn<String>(
+    'aspects_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1838,6 +1862,8 @@ class $ReadingProgressEntriesTable extends ReadingProgressEntries
     pageIndex,
     scrollPosition,
     updatedAt,
+    pageCount,
+    aspectsJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1891,6 +1917,21 @@ class $ReadingProgressEntriesTable extends ReadingProgressEntries
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('page_count')) {
+      context.handle(
+        _pageCountMeta,
+        pageCount.isAcceptableOrUnknown(data['page_count']!, _pageCountMeta),
+      );
+    }
+    if (data.containsKey('aspects_json')) {
+      context.handle(
+        _aspectsJsonMeta,
+        aspectsJson.isAcceptableOrUnknown(
+          data['aspects_json']!,
+          _aspectsJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1928,6 +1969,14 @@ class $ReadingProgressEntriesTable extends ReadingProgressEntries
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      pageCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_count'],
+      )!,
+      aspectsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}aspects_json'],
+      )!,
     );
   }
 
@@ -1943,8 +1992,17 @@ class ReadingProgressEntry extends DataClass
   final String comicId;
   final String chapterId;
   final int pageIndex;
+
+  /// Posisi gulir dalam satuan lebar layar (offset dibagi lebar).
   final double scrollPosition;
   final DateTime updatedAt;
+
+  /// Jumlah halaman chapter saat progres disimpan (0 = tidak diketahui).
+  final int pageCount;
+
+  /// Rasio tinggi/lebar tiap halaman yang sudah diketahui, berupa JSON list
+  /// dengan null untuk halaman yang belum pernah dimuat.
+  final String aspectsJson;
   const ReadingProgressEntry({
     required this.id,
     required this.comicId,
@@ -1952,6 +2010,8 @@ class ReadingProgressEntry extends DataClass
     required this.pageIndex,
     required this.scrollPosition,
     required this.updatedAt,
+    required this.pageCount,
+    required this.aspectsJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1962,6 +2022,8 @@ class ReadingProgressEntry extends DataClass
     map['page_index'] = Variable<int>(pageIndex);
     map['scroll_position'] = Variable<double>(scrollPosition);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['page_count'] = Variable<int>(pageCount);
+    map['aspects_json'] = Variable<String>(aspectsJson);
     return map;
   }
 
@@ -1973,6 +2035,8 @@ class ReadingProgressEntry extends DataClass
       pageIndex: Value(pageIndex),
       scrollPosition: Value(scrollPosition),
       updatedAt: Value(updatedAt),
+      pageCount: Value(pageCount),
+      aspectsJson: Value(aspectsJson),
     );
   }
 
@@ -1988,6 +2052,8 @@ class ReadingProgressEntry extends DataClass
       pageIndex: serializer.fromJson<int>(json['pageIndex']),
       scrollPosition: serializer.fromJson<double>(json['scrollPosition']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      pageCount: serializer.fromJson<int>(json['pageCount']),
+      aspectsJson: serializer.fromJson<String>(json['aspectsJson']),
     );
   }
   @override
@@ -2000,6 +2066,8 @@ class ReadingProgressEntry extends DataClass
       'pageIndex': serializer.toJson<int>(pageIndex),
       'scrollPosition': serializer.toJson<double>(scrollPosition),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'pageCount': serializer.toJson<int>(pageCount),
+      'aspectsJson': serializer.toJson<String>(aspectsJson),
     };
   }
 
@@ -2010,6 +2078,8 @@ class ReadingProgressEntry extends DataClass
     int? pageIndex,
     double? scrollPosition,
     DateTime? updatedAt,
+    int? pageCount,
+    String? aspectsJson,
   }) => ReadingProgressEntry(
     id: id ?? this.id,
     comicId: comicId ?? this.comicId,
@@ -2017,6 +2087,8 @@ class ReadingProgressEntry extends DataClass
     pageIndex: pageIndex ?? this.pageIndex,
     scrollPosition: scrollPosition ?? this.scrollPosition,
     updatedAt: updatedAt ?? this.updatedAt,
+    pageCount: pageCount ?? this.pageCount,
+    aspectsJson: aspectsJson ?? this.aspectsJson,
   );
   ReadingProgressEntry copyWithCompanion(ReadingProgressEntriesCompanion data) {
     return ReadingProgressEntry(
@@ -2028,6 +2100,10 @@ class ReadingProgressEntry extends DataClass
           ? data.scrollPosition.value
           : this.scrollPosition,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
+      aspectsJson: data.aspectsJson.present
+          ? data.aspectsJson.value
+          : this.aspectsJson,
     );
   }
 
@@ -2039,14 +2115,24 @@ class ReadingProgressEntry extends DataClass
           ..write('chapterId: $chapterId, ')
           ..write('pageIndex: $pageIndex, ')
           ..write('scrollPosition: $scrollPosition, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('aspectsJson: $aspectsJson')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, comicId, chapterId, pageIndex, scrollPosition, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    comicId,
+    chapterId,
+    pageIndex,
+    scrollPosition,
+    updatedAt,
+    pageCount,
+    aspectsJson,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2056,7 +2142,9 @@ class ReadingProgressEntry extends DataClass
           other.chapterId == this.chapterId &&
           other.pageIndex == this.pageIndex &&
           other.scrollPosition == this.scrollPosition &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.pageCount == this.pageCount &&
+          other.aspectsJson == this.aspectsJson);
 }
 
 class ReadingProgressEntriesCompanion
@@ -2067,6 +2155,8 @@ class ReadingProgressEntriesCompanion
   final Value<int> pageIndex;
   final Value<double> scrollPosition;
   final Value<DateTime> updatedAt;
+  final Value<int> pageCount;
+  final Value<String> aspectsJson;
   const ReadingProgressEntriesCompanion({
     this.id = const Value.absent(),
     this.comicId = const Value.absent(),
@@ -2074,6 +2164,8 @@ class ReadingProgressEntriesCompanion
     this.pageIndex = const Value.absent(),
     this.scrollPosition = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.aspectsJson = const Value.absent(),
   });
   ReadingProgressEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -2082,6 +2174,8 @@ class ReadingProgressEntriesCompanion
     this.pageIndex = const Value.absent(),
     this.scrollPosition = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.aspectsJson = const Value.absent(),
   }) : comicId = Value(comicId),
        chapterId = Value(chapterId);
   static Insertable<ReadingProgressEntry> custom({
@@ -2091,6 +2185,8 @@ class ReadingProgressEntriesCompanion
     Expression<int>? pageIndex,
     Expression<double>? scrollPosition,
     Expression<DateTime>? updatedAt,
+    Expression<int>? pageCount,
+    Expression<String>? aspectsJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2099,6 +2195,8 @@ class ReadingProgressEntriesCompanion
       if (pageIndex != null) 'page_index': pageIndex,
       if (scrollPosition != null) 'scroll_position': scrollPosition,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (pageCount != null) 'page_count': pageCount,
+      if (aspectsJson != null) 'aspects_json': aspectsJson,
     });
   }
 
@@ -2109,6 +2207,8 @@ class ReadingProgressEntriesCompanion
     Value<int>? pageIndex,
     Value<double>? scrollPosition,
     Value<DateTime>? updatedAt,
+    Value<int>? pageCount,
+    Value<String>? aspectsJson,
   }) {
     return ReadingProgressEntriesCompanion(
       id: id ?? this.id,
@@ -2117,6 +2217,8 @@ class ReadingProgressEntriesCompanion
       pageIndex: pageIndex ?? this.pageIndex,
       scrollPosition: scrollPosition ?? this.scrollPosition,
       updatedAt: updatedAt ?? this.updatedAt,
+      pageCount: pageCount ?? this.pageCount,
+      aspectsJson: aspectsJson ?? this.aspectsJson,
     );
   }
 
@@ -2141,6 +2243,12 @@ class ReadingProgressEntriesCompanion
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (pageCount.present) {
+      map['page_count'] = Variable<int>(pageCount.value);
+    }
+    if (aspectsJson.present) {
+      map['aspects_json'] = Variable<String>(aspectsJson.value);
+    }
     return map;
   }
 
@@ -2152,7 +2260,9 @@ class ReadingProgressEntriesCompanion
           ..write('chapterId: $chapterId, ')
           ..write('pageIndex: $pageIndex, ')
           ..write('scrollPosition: $scrollPosition, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('aspectsJson: $aspectsJson')
           ..write(')'))
         .toString();
   }
@@ -4812,6 +4922,8 @@ typedef $$ReadingProgressEntriesTableCreateCompanionBuilder =
       Value<int> pageIndex,
       Value<double> scrollPosition,
       Value<DateTime> updatedAt,
+      Value<int> pageCount,
+      Value<String> aspectsJson,
     });
 typedef $$ReadingProgressEntriesTableUpdateCompanionBuilder =
     ReadingProgressEntriesCompanion Function({
@@ -4821,6 +4933,8 @@ typedef $$ReadingProgressEntriesTableUpdateCompanionBuilder =
       Value<int> pageIndex,
       Value<double> scrollPosition,
       Value<DateTime> updatedAt,
+      Value<int> pageCount,
+      Value<String> aspectsJson,
     });
 
 final class $$ReadingProgressEntriesTableReferences
@@ -4888,6 +5002,16 @@ class $$ReadingProgressEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aspectsJson => $composableBuilder(
+    column: $table.aspectsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ComicsTableFilterComposer get comicId {
     final $$ComicsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -4946,6 +5070,16 @@ class $$ReadingProgressEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aspectsJson => $composableBuilder(
+    column: $table.aspectsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ComicsTableOrderingComposer get comicId {
     final $$ComicsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4995,6 +5129,14 @@ class $$ReadingProgressEntriesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get pageCount =>
+      $composableBuilder(column: $table.pageCount, builder: (column) => column);
+
+  GeneratedColumn<String> get aspectsJson => $composableBuilder(
+    column: $table.aspectsJson,
+    builder: (column) => column,
+  );
 
   $$ComicsTableAnnotationComposer get comicId {
     final $$ComicsTableAnnotationComposer composer = $composerBuilder(
@@ -5065,6 +5207,8 @@ class $$ReadingProgressEntriesTableTableManager
                 Value<int> pageIndex = const Value.absent(),
                 Value<double> scrollPosition = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> pageCount = const Value.absent(),
+                Value<String> aspectsJson = const Value.absent(),
               }) => ReadingProgressEntriesCompanion(
                 id: id,
                 comicId: comicId,
@@ -5072,6 +5216,8 @@ class $$ReadingProgressEntriesTableTableManager
                 pageIndex: pageIndex,
                 scrollPosition: scrollPosition,
                 updatedAt: updatedAt,
+                pageCount: pageCount,
+                aspectsJson: aspectsJson,
               ),
           createCompanionCallback:
               ({
@@ -5081,6 +5227,8 @@ class $$ReadingProgressEntriesTableTableManager
                 Value<int> pageIndex = const Value.absent(),
                 Value<double> scrollPosition = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> pageCount = const Value.absent(),
+                Value<String> aspectsJson = const Value.absent(),
               }) => ReadingProgressEntriesCompanion.insert(
                 id: id,
                 comicId: comicId,
@@ -5088,6 +5236,8 @@ class $$ReadingProgressEntriesTableTableManager
                 pageIndex: pageIndex,
                 scrollPosition: scrollPosition,
                 updatedAt: updatedAt,
+                pageCount: pageCount,
+                aspectsJson: aspectsJson,
               ),
           withReferenceMapper: (p0) => p0
               .map(

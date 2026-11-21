@@ -64,8 +64,17 @@ class ReadingProgressEntries extends Table {
   TextColumn get comicId => text().references(Comics, #id)();
   TextColumn get chapterId => text()();
   IntColumn get pageIndex => integer().withDefault(const Constant(0))();
+
+  /// Posisi gulir dalam satuan lebar layar (offset dibagi lebar).
   RealColumn get scrollPosition => real().withDefault(const Constant(0))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Jumlah halaman chapter saat progres disimpan (0 = tidak diketahui).
+  IntColumn get pageCount => integer().withDefault(const Constant(0))();
+
+  /// Rasio tinggi/lebar tiap halaman yang sudah diketahui, berupa JSON list
+  /// dengan null untuk halaman yang belum pernah dimuat.
+  TextColumn get aspectsJson => text().withDefault(const Constant('[]'))();
 
   @override
   List<Set<Column<Object>>> get uniqueKeys => [

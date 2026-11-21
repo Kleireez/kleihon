@@ -28,10 +28,24 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        // Versi 2: progres baca menyimpan jumlah halaman dan rasio tinggi
+        // halaman, supaya posisi bisa dipulihkan dengan tepat.
+        await migrator.addColumn(
+          readingProgressEntries,
+          readingProgressEntries.pageCount,
+        );
+        await migrator.addColumn(
+          readingProgressEntries,
+          readingProgressEntries.aspectsJson,
+        );
+      }
+    },
     beforeOpen: (details) async {
       // Wajib agar relasi antar tabel ditegakkan.
       await customStatement('PRAGMA foreign_keys = ON');

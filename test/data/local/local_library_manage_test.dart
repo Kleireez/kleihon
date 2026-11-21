@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:kleihon/data/repositories/reading_progress_repository_impl.dart';
+import 'package:kleihon/domain/entities/reading_progress.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kleihon/data/database/app_database.dart';
@@ -220,5 +222,90 @@ void main() {
       'Alpha 10',
       'beta',
     ]);
+  });
+
+  Future<void> saveProgressFor(
+    ImportedBatch batch,
+    int chapterIndex, {
+    int minute = 0,
+  }) {
+    return ReadingProgressRepositoryImpl(database).saveProgress(
+      ReadingProgress(
+        sourceId: 'local',
+        comicRemoteId: batch.comicRemoteId,
+        chapterRemoteId: batch.chapters[chapterIndex].chapterRemoteId,
+        pageIndex: 1,
+        pageCount: 5,
+        scrollOffset: 1,
+        aspects: const [1.0],
+        updatedAt: DateTime(2026, 11, 21, 10, minute),
+      ),
+    );
+  }
+
+  test(
+    'hapus chapter ikut menghapus progres dan riwayat chapter itu',
+    () async {
+      final batch = await importThree();
+      await saveProgressFor(batch, 0, minute: 1);
+      await saveProgressFor(batch, 1, minute: 2);
+
+      await library.deleteChapter(
+        comicRemoteId: batch.comicRemoteId,
+        chapterRemoteId: batch.chapters[1].chapterRemoteId,
+      );
+
+      final progress = await database
+          .select(database.readingProgressEntries)
+          .get();
+      expect(progress, hasLength(1));
+      expect(progress.single.chapterId, batch.chapters[0].chapterId);
+      // Riwayat menunjuk chapter yang dihapus, jadi dihapus juga.
+      expect(
+        await database.select(database.readingHistoryEntries).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test('hapus komik ikut menghapus semua progres dan riwayatnya', () async {
+    final batch = await importThree();
+    await saveProgressFor(batch, 0);
+    await saveProgressFor(batch, 2, minute: 3);
+
+    await library.deleteComic(batch.comicRemoteId);
+
+    expect(
+      await database.select(database.readingProgressEntries).get(),
+      isEmpty,
+    );
+    expect(
+      await database.select(database.readingHistoryEntries).get(),
+      isEmpty,
+    );
+    expect(await database.select(database.comics).get(), isEmpty);
+  });
+
+  test('hapus komik yang ditolak bookmark tidak menghapus progres', () async {
+    final batch = await importThree();
+    await saveProgressFor(batch, 0);
+    await database
+        .into(database.bookmarks)
+        .insert(BookmarksCompanion.insert(comicId: batch.comicId));
+
+    await expectLater(
+      library.deleteComic(batch.comicRemoteId),
+      throwsA(anything),
+    );
+
+    expect(
+      await database.select(database.readingProgressEntries).get(),
+      hasLength(1),
+    );
+    expect(
+      await database.select(database.readingHistoryEntries).get(),
+      hasLength(1),
+    );
+    expect(await database.select(database.chapters).get(), hasLength(3));
   });
 }
