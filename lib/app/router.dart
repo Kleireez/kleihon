@@ -6,6 +6,7 @@ import '../features/comic_detail/comic_detail_page.dart';
 import '../features/comic_detail/cover_picker_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/home/home_page.dart';
+import '../features/reader/reader_page.dart';
 import '../shared/widgets/placeholder_page.dart';
 import 'routes.dart';
 import 'shell/main_shell.dart';
@@ -91,12 +92,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.readerPattern,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (c, s) => PlaceholderPage(
-          title: 'Reader',
-          note:
-              'Sumber: ${s.pathParameters['sourceId']}\n'
-              'Chapter: ${s.pathParameters['chapterId']}\n\n'
-              'Reader dibuat di Phase 4.',
+        builder: (c, s) => ReaderPage(
+          sourceId: s.pathParameters['sourceId']!,
+          comicId: s.pathParameters['comicId']!,
+          chapterId: s.pathParameters['chapterId']!,
         ),
       ),
     ],

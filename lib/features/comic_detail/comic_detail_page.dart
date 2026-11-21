@@ -42,7 +42,13 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   bool get _isLocal => widget.sourceId == localSourceId;
 
   void _open(Chapter chapter) {
-    context.push(AppRoutes.reader(chapter.sourceId, chapter.remoteId));
+    context.push(
+      AppRoutes.reader(
+        chapter.sourceId,
+        chapter.comicRemoteId,
+        chapter.remoteId,
+      ),
+    );
   }
 
   Future<bool> _confirmDelete({

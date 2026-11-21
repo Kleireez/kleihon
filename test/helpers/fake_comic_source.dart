@@ -28,6 +28,7 @@ class FakeComicSource extends ComicSource {
     this.onLatest,
     this.onSearch,
     this.onChapters,
+    this.onPages,
   });
 
   @override
@@ -40,6 +41,7 @@ class FakeComicSource extends ComicSource {
   final Future<PagedResult<Comic>> Function(String query, int page)? onSearch;
   final Future<PagedResult<Chapter>> Function(String comicId, int page)?
   onChapters;
+  final Future<List<ChapterPage>> Function(String chapterId)? onPages;
 
   @override
   String get name => 'Fake $id';
@@ -62,5 +64,6 @@ class FakeComicSource extends ComicSource {
       : PagedResult(items: const [], page: page, hasNext: false);
 
   @override
-  Future<List<ChapterPage>> getChapterPages(String chapterId) async => [];
+  Future<List<ChapterPage>> getChapterPages(String chapterId) async =>
+      onPages != null ? onPages!(chapterId) : [];
 }
