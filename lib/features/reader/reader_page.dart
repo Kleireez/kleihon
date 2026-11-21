@@ -59,6 +59,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReadingProgress? _initialProgress;
   bool _firstOpenRegistered = false;
 
+  /// Nilai slider selama digeser. Null jika tidak sedang digeser.
+  double? _dragValue;
+  int? _lastSeekIndex;
+
+  /// Halaman tujuan lompatan slider. Selama diisi, posisinya dikoreksi tiap
+  /// kali gambar di atasnya selesai dimuat dan mengubah tinggi.
+  int? _anchorIndex;
+  Timer? _anchorTimer;
+  bool _anchorScheduled = false;
+
   ComicKey get _comicKey =>
       (sourceId: widget.sourceId, comicId: widget.comicId);
 
@@ -89,6 +99,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _anchorTimer?.cancel();
     // Menyimpan dulu: bagian sinkronnya membaca keadaan sebelum apa pun dibuang.
     unawaited(_saver.flush());
     _scrollController?.removeListener(_onScroll);
@@ -158,10 +169,77 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _saver.schedule();
   }
 
+  double _offsetOfPage(int index) => pageOffsetOf(
+    index: index,
+    pageWidth: _pageWidth,
+    aspectOf: (i) => _aspects[i],
+  );
+
+  /// Slider digeser: pindah ke halaman terdekat dan jaga posisinya.
+  void _seekTo(double value) {
+    final controller = _scrollController;
+    if (controller == null ||
+        !controller.hasClients ||
+        _pageCount == 0 ||
+        _pageWidth == 0) {
+      return;
+    }
+
+    final last = (_pageCount - 1).toDouble();
+    final clamped = value < 0 ? 0.0 : (value > last ? last : value);
+    setState(() => _dragValue = clamped);
+
+    final index = clamped.round();
+    if (index == _lastSeekIndex) return;
+    _lastSeekIndex = index;
+
+    _anchorIndex = index;
+    _anchorTimer?.cancel();
+    _anchorTimer = Timer(const Duration(milliseconds: 1500), () {
+      _anchorIndex = null;
+    });
+    controller.jumpTo(_offsetOfPage(index));
+  }
+
+  void _endSeek() {
+    setState(() {
+      _dragValue = null;
+      _lastSeekIndex = null;
+    });
+  }
+
+  /// Dipanggil tiap kali gambar sebuah halaman selesai dimuat.
+  void _onPageAspect(int index, double aspect) {
+    final previous = _aspects[index];
+    _aspects[index] = aspect;
+
+    final anchor = _anchorIndex;
+    if (anchor == null || index > anchor || previous == aspect) return;
+    if (_anchorScheduled) return;
+    _anchorScheduled = true;
+
+    // Tinggi halaman di atas tujuan berubah: kembalikan halaman tujuan ke atas.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _anchorScheduled = false;
+      final target = _anchorIndex;
+      final controller = _scrollController;
+      if (!mounted ||
+          target == null ||
+          controller == null ||
+          !controller.hasClients) {
+        return;
+      }
+      final offset = _offsetOfPage(target);
+      if ((controller.offset - offset).abs() > 0.5) controller.jumpTo(offset);
+    });
+  }
+
   void _toggleControls() {
     setState(() => _controlsVisible = !_controlsVisible);
     if (ref.read(readerToggleSystemBarsProvider)) {
-      unawaited(_controlsVisible ? _systemUi.showBars() : _systemUi.hideBars());
+      unawaited(
+        _controlsVisible ? _systemUi.showBars() : _systemUi.hideBars(),
+      );
     }
   }
 
@@ -201,6 +279,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       widget.chapterId,
     );
     final pageCount = pages.value?.length ?? 0;
+
+    var sliderValue = 0.0;
+    var displayIndex = 0;
+    if (pageCount > 0) {
+      final last = (pageCount - 1).toDouble();
+      final raw = _dragValue ?? _currentIndex.toDouble();
+      sliderValue = raw < 0 ? 0.0 : (raw > last ? last : raw);
+      displayIndex = sliderValue.round();
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -244,9 +331,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               visible: _controlsVisible,
               fromTop: false,
               child: _BottomBar(
-                label: pageCount == 0
-                    ? '-'
-                    : '${_currentIndex + 1} / $pageCount',
+                label: pageCount == 0 ? '-' : '${displayIndex + 1} / $pageCount',
+                pageCount: pageCount,
+                sliderValue: sliderValue,
+                onSeek: _seekTo,
+                onSeekEnd: _endSeek,
                 onPrevious: neighbors.previous == null
                     ? null
                     : () => _goTo(neighbors.previous!),
@@ -292,32 +381,39 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               _toggleControls();
             }
           },
-          child: ListView.builder(
-            controller: controller,
-            padding: EdgeInsets.zero,
-            scrollCacheExtent: const ScrollCacheExtent.viewport(1.5),
-            itemCount: pages.length + 1,
-            itemBuilder: (context, index) {
-              if (index == pages.length) {
-                return _EndOfChapter(
-                  next: neighbors.next,
-                  onNext: neighbors.next == null
-                      ? null
-                      : () => _goTo(neighbors.next!),
-                  onBack: _back,
-                );
-              }
-              final page = pages[index];
-              return ReaderPageImage(
-                key: ValueKey(page.imageUrl),
-                url: page.imageUrl,
-                number: index + 1,
-                width: width,
-                decodeWidth: decodeWidth,
-                knownAspect: _aspects[index],
-                onAspect: (aspect) => _aspects[index] = aspect,
-              );
+          child: NotificationListener<ScrollStartNotification>(
+            // Pengguna menggulir sendiri: lepaskan penjagaan posisi.
+            onNotification: (notification) {
+              if (notification.dragDetails != null) _anchorIndex = null;
+              return false;
             },
+            child: ListView.builder(
+              controller: controller,
+              padding: EdgeInsets.zero,
+              scrollCacheExtent: const ScrollCacheExtent.viewport(1.5),
+              itemCount: pages.length + 1,
+              itemBuilder: (context, index) {
+                if (index == pages.length) {
+                  return _EndOfChapter(
+                    next: neighbors.next,
+                    onNext: neighbors.next == null
+                        ? null
+                        : () => _goTo(neighbors.next!),
+                    onBack: _back,
+                  );
+                }
+                final page = pages[index];
+                return ReaderPageImage(
+                  key: ValueKey(page.imageUrl),
+                  url: page.imageUrl,
+                  number: index + 1,
+                  width: width,
+                  decodeWidth: decodeWidth,
+                  knownAspect: _aspects[index],
+                  onAspect: (aspect) => _onPageAspect(index, aspect),
+                );
+              },
+            ),
           ),
         );
       },
@@ -430,16 +526,28 @@ class _TopBar extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.label,
+    required this.pageCount,
+    required this.sliderValue,
+    required this.onSeek,
+    required this.onSeekEnd,
     required this.onPrevious,
     required this.onNext,
   });
 
   final String label;
+  final int pageCount;
+  final double sliderValue;
+  final ValueChanged<double> onSeek;
+  final VoidCallback onSeekEnd;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
+    // Slider hanya berguna jika ada lebih dari satu halaman.
+    final enabled = pageCount > 1;
+    final max = enabled ? (pageCount - 1).toDouble() : 1.0;
+
     return Material(
       color: Colors.black.withValues(alpha: 0.8),
       child: SafeArea(
@@ -453,12 +561,14 @@ class _BottomBar extends StatelessWidget {
                 onPressed: onPrevious,
                 icon: const Icon(Icons.skip_previous),
               ),
+              Text(label, style: Theme.of(context).textTheme.titleSmall),
               Expanded(
-                child: Center(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+                child: Slider(
+                  value: enabled ? sliderValue : 0,
+                  min: 0,
+                  max: max,
+                  onChanged: enabled ? onSeek : null,
+                  onChangeEnd: enabled ? (_) => onSeekEnd() : null,
                 ),
               ),
               IconButton(

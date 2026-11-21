@@ -42,7 +42,8 @@ ChapterNeighbors resolveChapterNeighbors(
 
 /// Halaman yang berada di tengah layar, dihitung dari posisi gulir dan
 /// tinggi halaman. Halaman yang tingginya belum diketahui memakai
-/// [defaultAspect] (tinggi dibagi lebar).
+/// [defaultAspect] (tinggi dibagi lebar). Nilai bawaan harus sama dengan
+/// tinggi placeholder di ReaderPageImage.
 int pageIndexAt({
   required double offset,
   required double viewportHeight,
@@ -59,6 +60,22 @@ int pageIndexAt({
     if (target < bottom) return i;
   }
   return pageCount - 1;
+}
+
+/// Posisi gulir tempat tepi atas halaman [index] berada (kebalikan dari
+/// [pageIndexAt]). Halaman yang belum diketahui tingginya memakai
+/// [defaultAspect].
+double pageOffsetOf({
+  required int index,
+  required double pageWidth,
+  required double? Function(int index) aspectOf,
+  double defaultAspect = 1.4,
+}) {
+  var offset = 0.0;
+  for (var i = 0; i < index; i++) {
+    offset += pageWidth * (aspectOf(i) ?? defaultAspect);
+  }
+  return offset;
 }
 
 /// True jika [position] berada di zona tengah layar: [widthFraction] dari

@@ -102,6 +102,41 @@ void main() {
         0,
       );
     });
+    group('pageOffsetOf', () {
+      // Lebar 100: tinggi halaman 100, 200, 100.
+      double? aspectOf(int i) => const [1.0, 2.0, 1.0][i];
+
+      double offsetOf(int index) =>
+          pageOffsetOf(index: index, pageWidth: 100, aspectOf: aspectOf);
+
+      test('jumlah tinggi halaman sebelumnya', () {
+        expect(offsetOf(0), 0);
+        expect(offsetOf(1), 100);
+        expect(offsetOf(2), 300);
+      });
+
+      test('halaman yang belum diketahui memakai tinggi bawaan', () {
+        expect(
+          pageOffsetOf(index: 2, pageWidth: 100, aspectOf: (_) => null),
+          280,
+        );
+      });
+
+      test('sejalan dengan pageIndexAt', () {
+        // Tepat di atas halaman i, bagian tengah layar (tinggi 100) jatuh di
+        // halaman i atau sesudahnya, tidak pernah sebelumnya.
+        for (var i = 0; i < 3; i++) {
+          final index = pageIndexAt(
+            offset: offsetOf(i),
+            viewportHeight: 100,
+            pageWidth: 100,
+            pageCount: 3,
+            aspectOf: aspectOf,
+          );
+          expect(index, greaterThanOrEqualTo(i));
+        }
+      });
+    });
     group('isCenterTap', () {
       const size = Size(100, 200);
       bool tap(double x, double y) =>

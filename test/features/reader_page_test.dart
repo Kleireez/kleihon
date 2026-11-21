@@ -317,6 +317,52 @@ void main() {
     expect(find.text('2 / 3'), findsOneWidget);
   });
 
+  testWidgets('geser slider memindahkan halaman', (tester) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Slider), findsOneWidget);
+    expect(scrollPixels(tester), 0);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Slider)),
+    );
+    await gesture.moveBy(const Offset(700, 0));
+    await tester.pump();
+
+    // Selama digeser, label mengikuti slider dan isi layar langsung pindah.
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(scrollPixels(tester), greaterThan(0));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('slider nonaktif jika chapter hanya satu halaman', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      testApp(
+        source: source(
+          onPages: (chapterId) async => [
+            ChapterPage(
+              index: 0,
+              imageUrl: 'file:///tmp/kleihon_test_satu.jpg',
+            ),
+          ],
+        ),
+        router: readerRouter('c2'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+  });
+
   testWidgets('chapter yang sudah selesai dibuka dari awal', (tester) async {
     useTallScreen(tester);
     final repo = FakeReadingProgressRepository()
