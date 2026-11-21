@@ -7,10 +7,14 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/chapter.dart';
+import '../../domain/entities/reading_progress.dart';
 import '../../shared/providers/chapter_pages_provider.dart';
+import '../../shared/providers/reading_progress_providers.dart';
 import '../comic_detail/comic_detail_providers.dart';
 import 'reader_math.dart';
 import 'reader_page_image.dart';
+import 'reader_progress_saver.dart';
+import 'reader_providers.dart';
 import 'reader_system_ui.dart';
 
 /// Reader mode vertikal bersambung (webtoon).
@@ -30,17 +34,30 @@ class ReaderPage extends ConsumerStatefulWidget {
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends ConsumerState<ReaderPage> {
-  final ScrollController _scroll = ScrollController();
+class _ReaderPageState extends ConsumerState<ReaderPage>
+    with WidgetsBindingObserver {
+  /// Dibuat saat lebar layar sudah diketahui, supaya bisa langsung dimulai
+  /// dari posisi tersimpan tanpa melompat.
+  ScrollController? _scrollController;
 
   /// Tinggi dibagi lebar tiap halaman yang sudah termuat.
   final Map<int, double> _aspects = {};
 
   late final ReaderSystemUi _systemUi;
+  late final ReaderProgressSaver _saver;
+
   bool _controlsVisible = true;
   int _currentIndex = 0;
   double _pageWidth = 0;
   int _pageCount = 0;
+
+  /// Posisi gulir terakhir dalam piksel. Disimpan sendiri karena saat
+  /// dispose() controller sudah lepas dari daftar.
+  double _lastOffset = 0;
+
+  bool _progressResolved = false;
+  ReadingProgress? _initialProgress;
+  bool _firstOpenRegistered = false;
 
   ComicKey get _comicKey =>
       (sourceId: widget.sourceId, comicId: widget.comicId);
@@ -48,32 +65,97 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   ChapterKey get _chapterKey =>
       (sourceId: widget.sourceId, chapterId: widget.chapterId);
 
+  ReaderKey get _readerKey => (
+    sourceId: widget.sourceId,
+    comicId: widget.comicId,
+    chapterId: widget.chapterId,
+  );
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _systemUi = ref.read(readerSystemUiProvider);
     unawaited(_systemUi.enterReader());
-    _scroll.addListener(_onScroll);
+    _saver = ReaderProgressSaver(
+      repository: ref.read(readingProgressRepositoryProvider),
+      sourceId: widget.sourceId,
+      comicRemoteId: widget.comicId,
+      chapterRemoteId: widget.chapterId,
+      snapshot: _snapshot,
+    );
   }
 
   @override
   void dispose() {
-    _scroll.removeListener(_onScroll);
-    _scroll.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    // Menyimpan dulu: bagian sinkronnya membaca keadaan sebelum apa pun dibuang.
+    unawaited(_saver.flush());
+    _scrollController?.removeListener(_onScroll);
+    _scrollController?.dispose();
     unawaited(_systemUi.leaveReader());
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) unawaited(_saver.flush());
+  }
+
+  ReaderSnapshot? _snapshot() {
+    if (_pageWidth == 0 || _pageCount == 0) return null;
+    return (
+      pageIndex: _currentIndex,
+      scrollOffset: _lastOffset / _pageWidth,
+      pageCount: _pageCount,
+      aspects: [for (var i = 0; i < _pageCount; i++) _aspects[i]],
+    );
+  }
+
+  /// Dipanggil sekali, saat progres tersimpan sudah terbaca.
+  void _adoptInitialProgress(ReadingProgress? progress) {
+    _initialProgress = progress;
+    if (progress == null || progress.isCompleted) return;
+    for (var i = 0; i < progress.aspects.length; i++) {
+      final aspect = progress.aspects[i];
+      if (aspect != null) _aspects[i] = aspect;
+    }
+    _currentIndex = progress.pageIndex < 0 ? 0 : progress.pageIndex;
+  }
+
+  ScrollController _controllerFor(double width) {
+    final existing = _scrollController;
+    if (existing != null) return existing;
+
+    final saved = _initialProgress;
+    final resume = saved != null && !saved.isCompleted;
+    final offset = resume ? saved.scrollOffset * width : 0.0;
+    _lastOffset = offset;
+
+    final controller = ScrollController(initialScrollOffset: offset)
+      ..addListener(_onScroll);
+    _scrollController = controller;
+    return controller;
+  }
+
   void _onScroll() {
-    if (!_scroll.hasClients || _pageCount == 0 || _pageWidth == 0) return;
+    final controller = _scrollController;
+    if (controller == null ||
+        !controller.hasClients ||
+        _pageCount == 0 ||
+        _pageWidth == 0) {
+      return;
+    }
+    _lastOffset = controller.offset;
     final index = pageIndexAt(
-      offset: _scroll.offset,
-      viewportHeight: _scroll.position.viewportDimension,
+      offset: controller.offset,
+      viewportHeight: controller.position.viewportDimension,
       pageWidth: _pageWidth,
       pageCount: _pageCount,
       aspectOf: (i) => _aspects[i],
     );
     if (index != _currentIndex) setState(() => _currentIndex = index);
+    _saver.schedule();
   }
 
   void _toggleControls() {
@@ -99,6 +181,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final saved = ref.watch(savedProgressProvider(_readerKey));
+    if (!_progressResolved) {
+      if (saved.isLoading) {
+        return const Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+      _progressResolved = true;
+      // Gagal membaca progres diperlakukan sebagai belum ada progres.
+      _adoptInitialProgress(saved.value);
+    }
+
     final detail = ref.watch(comicDetailProvider(_comicKey));
     final pages = ref.watch(chapterPagesProvider(_chapterKey));
     final neighbors = resolveChapterNeighbors(
@@ -179,6 +274,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _pageWidth = width;
         _pageCount = pages.length;
         final viewport = Size(width, constraints.maxHeight);
+        final controller = _controllerFor(width);
+
+        // Chapter yang belum pernah dibaca langsung tercatat di riwayat.
+        if (_initialProgress == null && !_firstOpenRegistered) {
+          _firstOpenRegistered = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _saver.schedule();
+          });
+        }
 
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
@@ -189,7 +293,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             }
           },
           child: ListView.builder(
-            controller: _scroll,
+            controller: controller,
             padding: EdgeInsets.zero,
             scrollCacheExtent: const ScrollCacheExtent.viewport(1.5),
             itemCount: pages.length + 1,

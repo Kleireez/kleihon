@@ -11,6 +11,10 @@ import 'package:kleihon/features/reader/reader_page_image.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
 
+import 'package:kleihon/domain/entities/reading_progress.dart';
+
+import '../helpers/fake_reading_progress_repository.dart';
+
 Future<PagedResult<Chapter>> threeChapters(String comicId, int page) async =>
     PagedResult(
       items: [
@@ -275,5 +279,110 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Chapter ini kosong.'), findsOneWidget);
+  });
+
+  ReadingProgress saved({
+    required int page,
+    required double offset,
+    int count = 3,
+  }) => ReadingProgress(
+    sourceId: 'local',
+    comicRemoteId: 'k1',
+    chapterRemoteId: 'c2',
+    pageIndex: page,
+    pageCount: count,
+    scrollOffset: offset,
+    aspects: const [1.0, 1.0, 1.0],
+    updatedAt: DateTime(2026, 11, 21, 10),
+  );
+
+  double scrollPixels(WidgetTester tester) => tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position
+      .pixels;
+
+  testWidgets('melanjutkan dari posisi tersimpan tanpa melompat', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(saved(page: 1, offset: 0.5));
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), progress: repo),
+    );
+    await tester.pumpAndSettle();
+
+    // 0,5 lebar layar (800) = 400 piksel.
+    expect(scrollPixels(tester), closeTo(400, 0.5));
+    expect(find.text('2 / 3'), findsOneWidget);
+  });
+
+  testWidgets('chapter yang sudah selesai dibuka dari awal', (tester) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(saved(page: 2, offset: 1.5));
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), progress: repo),
+    );
+    await tester.pumpAndSettle();
+
+    expect(scrollPixels(tester), 0);
+    expect(find.text('1 / 3'), findsOneWidget);
+  });
+
+  testWidgets('chapter baru tercatat saat reader ditutup', (tester) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository();
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), progress: repo),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+
+    expect(repo.saved, hasLength(1));
+    expect(repo.saved.single.chapterRemoteId, 'c2');
+    expect(repo.saved.single.pageIndex, 0);
+    expect(repo.saved.single.pageCount, 3);
+    expect(repo.saved.single.aspects, hasLength(3));
+  });
+
+  testWidgets('membuka chapter lama tanpa menggulir tidak menimpa progres', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(saved(page: 1, offset: 0.5));
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), progress: repo),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+
+    expect(repo.saved, isEmpty);
+  });
+
+  testWidgets('menggulir lalu menutup reader menyimpan posisi baru', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository();
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), progress: repo),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+
+    expect(repo.saved, isNotEmpty);
+    final last = repo.saved.last;
+    expect(last.scrollOffset, greaterThan(0.5));
+    expect(last.pageIndex, greaterThan(0));
   });
 }

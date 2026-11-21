@@ -5,9 +5,11 @@ import 'package:kleihon/app/theme/app_theme.dart';
 import 'package:kleihon/data/sources/source_providers.dart';
 import 'package:kleihon/data/sources/source_registry.dart';
 import 'package:kleihon/features/reader/reader_system_ui.dart';
+import 'package:kleihon/shared/providers/reading_progress_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'fake_comic_source.dart';
+import 'fake_reading_progress_repository.dart';
 
 /// Layar tinggi supaya daftar tidak terpotong di test.
 void useTallScreen(WidgetTester tester) {
@@ -16,7 +18,6 @@ void useTallScreen(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-/// HANYA UNTUK TEST: tidak menyentuh bilah sistem.
 /// HANYA UNTUK TEST: tidak menyentuh bilah sistem.
 class NoopReaderSystemUi implements ReaderSystemUi {
   const NoopReaderSystemUi();
@@ -35,10 +36,12 @@ class NoopReaderSystemUi implements ReaderSystemUi {
 }
 
 /// Membungkus layar dengan sumber palsu. Isi [home] atau [router].
+/// [progress] dapat diisi untuk menyiapkan atau memeriksa progres baca.
 Widget testApp({
   required FakeComicSource source,
   Widget? home,
   GoRouter? router,
+  FakeReadingProgressRepository? progress,
 }) {
   assert(
     (home == null) != (router == null),
@@ -50,6 +53,9 @@ Widget testApp({
     overrides: [
       sourceRegistryProvider.overrideWithValue(SourceRegistry([source])),
       readerSystemUiProvider.overrideWithValue(const NoopReaderSystemUi()),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progress ?? FakeReadingProgressRepository(),
+      ),
     ],
     child: router != null
         ? MaterialApp.router(theme: AppTheme.dark, routerConfig: router)

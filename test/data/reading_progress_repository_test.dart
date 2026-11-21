@@ -6,6 +6,7 @@ import 'package:kleihon/data/database/app_database.dart';
 import 'package:kleihon/data/repositories/reading_progress_repository_impl.dart';
 import 'package:kleihon/domain/entities/reading_progress.dart';
 import 'package:path/path.dart' as p;
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 
 void main() {
   late AppDatabase db;
@@ -158,6 +159,7 @@ void main() {
   );
 
   test('migrasi dari versi 1 menambah kolom dan mempertahankan data', () async {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
     final dir = await Directory.systemTemp.createTemp('kleihon_migration_');
     final file = File(p.join(dir.path, 'lama.sqlite'));
     final old = AppDatabase.forTesting(

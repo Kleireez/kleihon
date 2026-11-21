@@ -40,6 +40,7 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
   ImageStreamListener? _listener;
   ImageInfo? _info;
   Object? _error;
+  bool _started = false;
 
   ImageProvider? _provider() {
     final uri = Uri.tryParse(widget.url);
@@ -58,7 +59,17 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _resolve();
+    if (_started) {
+      _resolve();
+      return;
+    }
+    _started = true;
+    // Pemuatan pertama ditunda satu frame. Saat daftar melompat jauh
+    // (memulihkan posisi), halaman yang dilewati dibuat lalu dibuang pada
+    // frame yang sama, dan tidak sempat memulai pemuatan gambar.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resolve();
+    });
   }
 
   @override

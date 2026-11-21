@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/chapter.dart';
 import '../../domain/entities/comic.dart';
+import '../../domain/entities/reading_progress.dart';
 import '../../shared/providers/comic_providers.dart';
 import '../../shared/providers/library_revision_provider.dart';
+import '../../shared/providers/reading_progress_providers.dart';
 
 /// Identitas komik di sebuah sumber. Record memiliki kesamaan berdasarkan
 /// nilai, jadi aman dipakai sebagai kunci family.
@@ -36,4 +38,16 @@ final comicDetailProvider = FutureProvider.autoDispose
       );
 
       return ComicDetailData(comic: comic, chapters: chapters);
+    });
+
+/// Progres baca semua chapter sebuah komik, dengan kunci chapterRemoteId.
+/// Diperbarui otomatis saat progres disimpan.
+final comicProgressProvider = StreamProvider.autoDispose
+    .family<Map<String, ReadingProgress>, ComicKey>((ref, key) {
+      return ref
+          .watch(readingProgressRepositoryProvider)
+          .watchComicProgress(
+            sourceId: key.sourceId,
+            comicRemoteId: key.comicId,
+          );
     });

@@ -7,7 +7,9 @@ import 'package:kleihon/domain/entities/comic.dart';
 import 'package:kleihon/domain/entities/source_results.dart';
 import 'package:kleihon/features/comic_detail/comic_detail_page.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:kleihon/domain/entities/reading_progress.dart';
 
+import '../helpers/fake_reading_progress_repository.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
 
@@ -305,5 +307,93 @@ void main() {
     await tester.tap(find.text('Kembali'));
     await tester.pumpAndSettle();
     expect(find.text('BUKA'), findsOneWidget);
+  });
+
+  ReadingProgress progressOf(String chapterId, {required int page}) =>
+      ReadingProgress(
+        sourceId: 'local',
+        comicRemoteId: 'k1',
+        chapterRemoteId: chapterId,
+        pageIndex: page,
+        pageCount: 10,
+        scrollOffset: 1,
+        aspects: const [],
+        updatedAt: DateTime(2026, 11, 21, 10),
+      );
+
+  FakeComicSource threeChapterSource() => FakeComicSource(
+    'local',
+    onChapters: (comicId, page) => threeChapters('local', comicId, page),
+  );
+
+  testWidgets(
+    'dengan progres: tombol Lanjut membaca membuka chapter tersimpan',
+    (tester) async {
+      useTallScreen(tester);
+      final repo = FakeReadingProgressRepository()
+        ..seed(progressOf('c2', page: 3));
+      await tester.pumpWidget(
+        testApp(
+          source: threeChapterSource(),
+          router: detailRouter(),
+          progress: repo,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mulai membaca'), findsNothing);
+      expect(find.text('Lanjut membaca'), findsOneWidget);
+      expect(find.text('Halaman 4 / 10'), findsOneWidget);
+
+      await tester.tap(find.text('Lanjut membaca'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('READER local/c2'), findsOneWidget);
+    },
+  );
+
+  testWidgets('chapter selesai ditandai dan lanjut ke chapter berikutnya', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(progressOf('c1', page: 9));
+    await tester.pumpWidget(
+      testApp(
+        source: threeChapterSource(),
+        router: detailRouter(),
+        progress: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Selesai'), findsOneWidget);
+
+    await tester.tap(find.text('Lanjut membaca'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('READER local/c2'), findsOneWidget);
+  });
+
+  testWidgets('semua chapter selesai: Baca ulang dari awal', (tester) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(progressOf('c3', page: 9));
+    await tester.pumpWidget(
+      testApp(
+        source: threeChapterSource(),
+        router: detailRouter(),
+        progress: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Baca ulang dari awal'), findsOneWidget);
+    expect(find.text('Lanjut membaca'), findsNothing);
+
+    await tester.tap(find.text('Baca ulang dari awal'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('READER local/c1'), findsOneWidget);
   });
 }

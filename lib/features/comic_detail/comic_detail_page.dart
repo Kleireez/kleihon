@@ -5,14 +5,16 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/app_logger.dart';
-import '../../core/utils/format_date.dart';
 import '../../data/local/local_library_layout.dart';
 import '../../data/local/local_providers.dart';
 import '../../domain/entities/chapter.dart';
 import '../../domain/entities/comic.dart';
+import '../../domain/entities/reading_progress.dart';
+import '../../domain/usecases/continue_reading.dart';
 import '../../shared/providers/library_revision_provider.dart';
 import '../../shared/widgets/comic_cover.dart';
 import 'comic_detail_providers.dart';
+import 'progress_labels.dart';
 
 enum _ComicAction { cover, delete }
 
@@ -195,10 +197,18 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   }
 
   Widget _buildContent(BuildContext context, ComicDetailData data) {
+    final progress =
+        ref.watch(comicProgressProvider(_key)).value ??
+        const <String, ReadingProgress>{};
+    final target = resolveContinueTarget(
+      chapters: data.chapters,
+      progress: progress,
+    );
     final chapters = _newestFirst
         ? data.chapters.reversed.toList()
         : data.chapters;
     final first = data.chapters.isEmpty ? null : data.chapters.first;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return RefreshIndicator(
       onRefresh: () => ref.refresh(comicDetailProvider(_key).future),
@@ -209,11 +219,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: FilledButton.icon(
-                onPressed: first == null ? null : () => _open(first),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Mulai membaca'),
-              ),
+              child: _ReadButton(target: target, first: first, onOpen: _open),
             ),
           ),
           SliverToBoxAdapter(
@@ -250,12 +256,19 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final chapter = chapters[index];
-                final published = chapter.publishedAt;
+                final entry = progress[chapter.remoteId];
+                final subtitle = chapterSubtitle(
+                  published: chapter.publishedAt,
+                  progress: entry,
+                );
                 return ListTile(
-                  title: Text(chapter.title),
-                  subtitle: published == null
-                      ? null
-                      : Text(formatShortDate(published)),
+                  title: Text(
+                    chapter.title,
+                    style: entry?.isCompleted == true
+                        ? TextStyle(color: muted)
+                        : null,
+                  ),
+                  subtitle: subtitle == null ? null : Text(subtitle),
                   trailing: _isLocal
                       ? PopupMenuButton<String>(
                           tooltip: 'Opsi chapter',
@@ -275,6 +288,75 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
+    );
+  }
+}
+
+/// Tombol baca utama: mulai, lanjut, atau baca ulang.
+class _ReadButton extends StatelessWidget {
+  const _ReadButton({
+    required this.target,
+    required this.first,
+    required this.onOpen,
+  });
+
+  final ContinueTarget? target;
+  final Chapter? first;
+  final void Function(Chapter chapter) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = first;
+    if (start == null) {
+      return FilledButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Mulai membaca'),
+      );
+    }
+
+    final current = target;
+    if (current == null) {
+      return FilledButton.icon(
+        onPressed: () => onOpen(start),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Mulai membaca'),
+      );
+    }
+
+    if (current.finished) {
+      return FilledButton.tonalIcon(
+        onPressed: () => onOpen(start),
+        icon: const Icon(Icons.replay),
+        label: const Text('Baca ulang dari awal'),
+      );
+    }
+
+    final saved = current.progress;
+    final caption = (saved != null && saved.pageCount > 0)
+        ? '${current.chapter.title} • halaman ${saved.pageIndex + 1} '
+              'dari ${saved.pageCount}'
+        : current.chapter.title;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => onOpen(current.chapter),
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Lanjut membaca'),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          caption,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted),
+        ),
+      ],
     );
   }
 }
