@@ -7,7 +7,9 @@ import 'package:kleihon/domain/entities/source_results.dart';
 import 'package:kleihon/features/reader/reader_page.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:kleihon/features/reader/reader_page_image.dart';
+import 'package:kleihon/features/reader/reader_settings.dart';
 
+import '../helpers/fake_reader_services.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
 
@@ -430,5 +432,82 @@ void main() {
     final last = repo.saved.last;
     expect(last.scrollOffset, greaterThan(0.5));
     expect(last.pageIndex, greaterThan(0));
+  });
+  testWidgets('layar tetap menyala selama membaca dan dilepas saat keluar', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final awake = FakeScreenAwake();
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2'), screenAwake: awake),
+    );
+    await tester.pumpAndSettle();
+    expect(awake.calls.last, isTrue);
+
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+    expect(awake.calls.last, isFalse);
+  });
+
+  testWidgets('pengaturan reader: ganti warna latar dan layar menyala', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore();
+    final awake = FakeScreenAwake();
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+        screenAwake: awake,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Pengaturan reader'));
+    await tester.pumpAndSettle();
+    expect(find.text('Warna latar'), findsOneWidget);
+
+    await tester.tap(find.text('Putih'));
+    await tester.pumpAndSettle();
+    expect(store.saved.last.background, ReaderBackground.white);
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      ReaderBackground.white.color,
+    );
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(store.saved.last.keepScreenOn, isFalse);
+    expect(awake.calls.last, isFalse);
+  });
+
+  testWidgets('pengaturan tersimpan diterapkan saat reader dibuka', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore(
+      const ReaderSettings(
+        background: ReaderBackground.sepia,
+        keepScreenOn: false,
+      ),
+    );
+    final awake = FakeScreenAwake();
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+        screenAwake: awake,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      ReaderBackground.sepia.color,
+    );
+    expect(awake.calls.last, isFalse);
   });
 }

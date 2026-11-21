@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:kleihon/app/theme/app_theme.dart';
 import 'package:kleihon/data/sources/source_providers.dart';
 import 'package:kleihon/data/sources/source_registry.dart';
+import 'package:kleihon/features/reader/reader_settings_providers.dart';
 import 'package:kleihon/features/reader/reader_system_ui.dart';
+import 'package:kleihon/features/reader/screen_awake.dart';
 import 'package:kleihon/shared/providers/reading_progress_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'fake_comic_source.dart';
+import 'fake_reader_services.dart';
 import 'fake_reading_progress_repository.dart';
 
 /// Layar tinggi supaya daftar tidak terpotong di test.
@@ -36,12 +39,15 @@ class NoopReaderSystemUi implements ReaderSystemUi {
 }
 
 /// Membungkus layar dengan sumber palsu. Isi [home] atau [router].
-/// [progress] dapat diisi untuk menyiapkan atau memeriksa progres baca.
+/// [progress], [settingsStore], dan [screenAwake] dapat diisi untuk
+/// menyiapkan atau memeriksa keadaan reader.
 Widget testApp({
   required FakeComicSource source,
   Widget? home,
   GoRouter? router,
   FakeReadingProgressRepository? progress,
+  InMemoryReaderSettingsStore? settingsStore,
+  FakeScreenAwake? screenAwake,
 }) {
   assert(
     (home == null) != (router == null),
@@ -55,6 +61,12 @@ Widget testApp({
       readerSystemUiProvider.overrideWithValue(const NoopReaderSystemUi()),
       readingProgressRepositoryProvider.overrideWithValue(
         progress ?? FakeReadingProgressRepository(),
+      ),
+      readerSettingsStoreProvider.overrideWithValue(
+        settingsStore ?? InMemoryReaderSettingsStore(),
+      ),
+      readerScreenAwakeProvider.overrideWithValue(
+        screenAwake ?? FakeScreenAwake(),
       ),
     ],
     child: router != null

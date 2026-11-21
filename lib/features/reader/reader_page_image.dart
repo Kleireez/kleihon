@@ -13,6 +13,8 @@ class ReaderPageImage extends StatefulWidget {
     required this.decodeWidth,
     required this.onAspect,
     this.knownAspect,
+    this.placeholderColor = const Color(0xFF101010),
+    this.placeholderTextColor = const Color(0xFF6B6B6B),
   });
 
   final String url;
@@ -30,6 +32,10 @@ class ReaderPageImage extends StatefulWidget {
   final double? knownAspect;
 
   final void Function(double aspect) onAspect;
+
+  /// Warna kotak dan tulisan saat halaman belum termuat.
+  final Color placeholderColor;
+  final Color placeholderTextColor;
 
   @override
   State<ReaderPageImage> createState() => _ReaderPageImageState();
@@ -150,28 +156,35 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
     if (_error != null) {
       return Container(
         height: widget.width * 0.7,
-        color: const Color(0xFF1B1B1B),
+        color: widget.placeholderColor,
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.broken_image_outlined),
+            Icon(
+              Icons.broken_image_outlined,
+              color: widget.placeholderTextColor,
+            ),
             const SizedBox(height: 8),
-            Text('Halaman ${widget.number} gagal dimuat'),
+            Text(
+              'Halaman ${widget.number} gagal dimuat',
+              style: TextStyle(color: widget.placeholderTextColor),
+            ),
             TextButton(onPressed: _retry, child: const Text('Coba lagi')),
           ],
         ),
       );
     }
 
-    // Tanpa animasi: tinggi perkiraan sampai gambar termuat.
+    // Tanpa animasi: tinggi perkiraan sampai gambar termuat. Perkiraan
+    // bawaan (1,4) harus sama dengan defaultAspect di pageIndexAt.
     return Container(
       height: widget.width * (widget.knownAspect ?? 1.4),
-      color: const Color(0xFF101010),
+      color: widget.placeholderColor,
       alignment: Alignment.center,
       child: Text(
         'Halaman ${widget.number}',
-        style: const TextStyle(color: Color(0xFF6B6B6B)),
+        style: TextStyle(color: widget.placeholderTextColor),
       ),
     );
   }

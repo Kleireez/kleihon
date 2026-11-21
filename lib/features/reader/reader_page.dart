@@ -15,7 +15,11 @@ import 'reader_math.dart';
 import 'reader_page_image.dart';
 import 'reader_progress_saver.dart';
 import 'reader_providers.dart';
+import 'reader_settings.dart';
+import 'reader_settings_providers.dart';
+import 'reader_settings_sheet.dart';
 import 'reader_system_ui.dart';
+import 'screen_awake.dart';
 
 /// Reader mode vertikal bersambung (webtoon).
 class ReaderPage extends ConsumerStatefulWidget {
@@ -44,6 +48,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   final Map<int, double> _aspects = {};
 
   late final ReaderSystemUi _systemUi;
+  late final ScreenAwake _screenAwake;
   late final ReaderProgressSaver _saver;
 
   bool _controlsVisible = true;
@@ -86,7 +91,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _systemUi = ref.read(readerSystemUiProvider);
+    _screenAwake = ref.read(readerScreenAwakeProvider);
     unawaited(_systemUi.enterReader());
+
+    // Layar menyala mengikuti pengaturan, termasuk saat diubah di tengah baca.
+    ref.listenManual<AsyncValue<ReaderSettings>>(readerSettingsProvider, (
+      previous,
+      next,
+    ) {
+      final keepOn = (next.value ?? ReaderSettings.defaults).keepScreenOn;
+      unawaited(_screenAwake.set(keepOn));
+    }, fireImmediately: true);
+
     _saver = ReaderProgressSaver(
       repository: ref.read(readingProgressRepositoryProvider),
       sourceId: widget.sourceId,
@@ -104,6 +120,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     unawaited(_saver.flush());
     _scrollController?.removeListener(_onScroll);
     _scrollController?.dispose();
+    unawaited(_screenAwake.set(false));
     unawaited(_systemUi.leaveReader());
     super.dispose();
   }
@@ -237,10 +254,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void _toggleControls() {
     setState(() => _controlsVisible = !_controlsVisible);
     if (ref.read(readerToggleSystemBarsProvider)) {
-      unawaited(
-        _controlsVisible ? _systemUi.showBars() : _systemUi.hideBars(),
-      );
+      unawaited(_controlsVisible ? _systemUi.showBars() : _systemUi.hideBars());
     }
+  }
+
+  void _openSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => const ReaderSettingsSheet(),
+    );
   }
 
   void _goTo(Chapter chapter) {
@@ -259,12 +281,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   @override
   Widget build(BuildContext context) {
+    final settings =
+        ref.watch(readerSettingsProvider).value ?? ReaderSettings.defaults;
+    final background = settings.background;
+
     final saved = ref.watch(savedProgressProvider(_readerKey));
     if (!_progressResolved) {
       if (saved.isLoading) {
-        return const Scaffold(
-          backgroundColor: Colors.black,
-          body: Center(child: CircularProgressIndicator()),
+        return Scaffold(
+          backgroundColor: background.color,
+          body: const Center(child: CircularProgressIndicator()),
         );
       }
       _progressResolved = true;
@@ -290,23 +316,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: background.color,
       body: Stack(
         children: [
           Positioned.fill(
-            child: pages.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => _Message(
-                text: error is AppException
-                    ? error.userMessage
-                    : 'Gagal memuat chapter.',
-                actionLabel: 'Coba lagi',
-                onAction: () =>
-                    ref.invalidate(chapterPagesProvider(_chapterKey)),
+            child: DefaultTextStyle.merge(
+              // Teks di area baca mengikuti warna latar.
+              style: TextStyle(color: background.foreground),
+              child: pages.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => _Message(
+                  text: error is AppException
+                      ? error.userMessage
+                      : 'Gagal memuat chapter.',
+                  actionLabel: 'Coba lagi',
+                  onAction: () =>
+                      ref.invalidate(chapterPagesProvider(_chapterKey)),
+                ),
+                data: (list) => list.isEmpty
+                    ? const _Message(text: 'Chapter ini kosong.')
+                    : _buildPages(context, list, neighbors, settings),
               ),
-              data: (list) => list.isEmpty
-                  ? const _Message(text: 'Chapter ini kosong.')
-                  : _buildPages(context, list, neighbors),
             ),
           ),
           Positioned(
@@ -320,6 +350,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 comicTitle: detail.value?.comic.title ?? '',
                 chapterTitle: neighbors.current?.title ?? '',
                 onBack: _back,
+                onSettings: _openSettings,
               ),
             ),
           ),
@@ -331,7 +362,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               visible: _controlsVisible,
               fromTop: false,
               child: _BottomBar(
-                label: pageCount == 0 ? '-' : '${displayIndex + 1} / $pageCount',
+                label: pageCount == 0
+                    ? '-'
+                    : '${displayIndex + 1} / $pageCount',
                 pageCount: pageCount,
                 sliderValue: sliderValue,
                 onSeek: _seekTo,
@@ -354,6 +387,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     BuildContext context,
     List<ChapterPage> pages,
     ChapterNeighbors neighbors,
+    ReaderSettings settings,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -411,6 +445,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   decodeWidth: decodeWidth,
                   knownAspect: _aspects[index],
                   onAspect: (aspect) => _onPageAspect(index, aspect),
+                  placeholderColor: settings.background.placeholderColor,
+                  placeholderTextColor:
+                      settings.background.placeholderTextColor,
                 );
               },
             ),
@@ -471,11 +508,13 @@ class _TopBar extends StatelessWidget {
     required this.comicTitle,
     required this.chapterTitle,
     required this.onBack,
+    required this.onSettings,
   });
 
   final String comicTitle;
   final String chapterTitle;
   final VoidCallback onBack;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -514,6 +553,11 @@ class _TopBar extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Pengaturan reader',
+                onPressed: onSettings,
+                icon: const Icon(Icons.tune),
               ),
             ],
           ),
@@ -598,11 +642,18 @@ class _EndOfChapter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nextChapter = next;
+    // Warna teks mengikuti latar reader (diatur lewat DefaultTextStyle).
+    final textColor = DefaultTextStyle.of(context).style.color;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 120),
       child: Column(
         children: [
-          Text('Akhir chapter', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Akhir chapter',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: textColor),
+          ),
           const SizedBox(height: 16),
           if (nextChapter != null)
             FilledButton(
