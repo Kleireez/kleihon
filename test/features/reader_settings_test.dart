@@ -96,6 +96,54 @@ void main() {
       );
     });
 
+    test('mode baca dan penyesuaian halaman: bawaan dan round trip', () {
+      expect(ReaderSettings.defaults.readingMode, ReadingMode.vertical);
+      expect(ReaderSettings.defaults.pageFit, PageFit.height);
+
+      for (final mode in ReadingMode.values) {
+        for (final fit in PageFit.values) {
+          final original = ReaderSettings(readingMode: mode, pageFit: fit);
+          expect(ReaderSettings.fromJson(original.toJson()), original);
+        }
+      }
+    });
+
+    test('data lama tanpa mode baca memakai nilai bawaan', () {
+      final old = ReaderSettings.fromJson({
+        'background': 'sepia',
+        'keepScreenOn': false,
+      });
+      expect(old.background, ReaderBackground.sepia);
+      expect(old.keepScreenOn, isFalse);
+      expect(old.readingMode, ReadingMode.vertical);
+      expect(old.pageFit, PageFit.height);
+    });
+
+    test('mode atau penyesuaian asing memakai bawaan, sisanya tetap', () {
+      final odd = ReaderSettings.fromJson({
+        'background': 'white',
+        'readingMode': 'diagonal',
+        'pageFit': 'penuh',
+      });
+      expect(odd.background, ReaderBackground.white);
+      expect(odd.readingMode, ReadingMode.vertical);
+      expect(odd.pageFit, PageFit.height);
+    });
+
+    test('arah dan label tiap mode baca', () {
+      expect(ReadingMode.vertical.isHorizontal, isFalse);
+      expect(ReadingMode.horizontalLtr.isHorizontal, isTrue);
+      expect(ReadingMode.horizontalRtl.isHorizontal, isTrue);
+      expect(ReadingMode.horizontalLtr.isRtl, isFalse);
+      expect(ReadingMode.horizontalRtl.isRtl, isTrue);
+      for (final mode in ReadingMode.values) {
+        expect(mode.label, isNotEmpty);
+      }
+      for (final fit in PageFit.values) {
+        expect(fit.label, isNotEmpty);
+      }
+    });
+
     test('teks terbaca di atas semua warna latar', () {
       for (final background in ReaderBackground.values) {
         final gap =

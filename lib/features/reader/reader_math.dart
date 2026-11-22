@@ -80,6 +80,7 @@ double pageOffsetOf({
 
 /// True jika [position] berada di zona tengah layar: [widthFraction] dari
 /// lebar dan [heightFraction] dari tinggi, dipusatkan. Batas termasuk zona.
+/// Dipakai pada mode vertikal.
 bool isCenterTap({
   required Offset position,
   required Size size,
@@ -92,4 +93,21 @@ bool isCenterTap({
       position.dx <= size.width - marginX &&
       position.dy >= marginY &&
       position.dy <= size.height - marginY;
+}
+
+/// Perubahan halaman untuk ketukan pada mode horizontal: -1 ke halaman
+/// sebelumnya, +1 ke berikutnya, 0 untuk zona tengah (menampilkan atau
+/// menyembunyikan bilah). [edgeFraction] adalah lebar tiap zona tepi.
+/// Pada [rtl] arahnya dibalik: halaman berikutnya ada di sebelah kiri.
+int pageTurnForTap({
+  required double x,
+  required double width,
+  required bool rtl,
+  double edgeFraction = 0.3,
+}) {
+  if (width <= 0) return 0;
+  final fraction = x / width;
+  if (fraction < edgeFraction) return rtl ? 1 : -1;
+  if (fraction > 1 - edgeFraction) return rtl ? -1 : 1;
+  return 0;
 }

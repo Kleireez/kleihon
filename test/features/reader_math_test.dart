@@ -164,5 +164,35 @@ void main() {
         expect(tap(50, 49), isFalse);
       });
     });
+    group('pageTurnForTap', () {
+      int turn(double x, {bool rtl = false}) =>
+          pageTurnForTap(x: x, width: 100, rtl: rtl);
+
+      test('kiri-ke-kanan: tepi kiri mundur, tepi kanan maju', () {
+        expect(turn(10), -1);
+        expect(turn(90), 1);
+      });
+
+      test('kanan-ke-kiri: arahnya dibalik', () {
+        expect(turn(10, rtl: true), 1);
+        expect(turn(90, rtl: true), -1);
+      });
+
+      test('zona tengah tidak memindah halaman', () {
+        expect(turn(50), 0);
+        expect(turn(50, rtl: true), 0);
+      });
+
+      test('batas zona tepi: tepat 30 dan 70 termasuk zona tengah', () {
+        expect(turn(30), 0);
+        expect(turn(70), 0);
+        expect(turn(29.9), -1);
+        expect(turn(70.1), 1);
+      });
+
+      test('lebar nol aman', () {
+        expect(pageTurnForTap(x: 5, width: 0, rtl: false), 0);
+      });
+    });
   });
 }

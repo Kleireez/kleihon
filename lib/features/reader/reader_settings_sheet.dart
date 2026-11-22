@@ -16,13 +16,49 @@ class ReaderSettingsSheet extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Pengaturan reader', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 16),
+            Text('Mode baca', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ReadingMode>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final mode in ReadingMode.values)
+                    ButtonSegment(value: mode, label: Text(mode.label)),
+                ],
+                selected: {settings.readingMode},
+                onSelectionChanged: (selection) => controller.apply(
+                  settings.copyWith(readingMode: selection.first),
+                ),
+              ),
+            ),
+            if (settings.readingMode.isHorizontal) ...[
+              const SizedBox(height: 16),
+              Text('Sesuaikan halaman', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<PageFit>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final fit in PageFit.values)
+                      ButtonSegment(value: fit, label: Text(fit.label)),
+                  ],
+                  selected: {settings.pageFit},
+                  onSelectionChanged: (selection) => controller.apply(
+                    settings.copyWith(pageFit: selection.first),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Text('Warna latar', style: theme.textTheme.bodyMedium),
             const SizedBox(height: 8),

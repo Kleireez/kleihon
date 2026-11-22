@@ -11,6 +11,7 @@ import '../../domain/entities/reading_progress.dart';
 import '../../shared/providers/chapter_pages_provider.dart';
 import '../../shared/providers/reading_progress_providers.dart';
 import '../comic_detail/comic_detail_providers.dart';
+import 'reader_horizontal_page.dart';
 import 'reader_math.dart';
 import 'reader_page_image.dart';
 import 'reader_progress_saver.dart';
@@ -21,7 +22,7 @@ import 'reader_settings_sheet.dart';
 import 'reader_system_ui.dart';
 import 'screen_awake.dart';
 
-/// Reader mode vertikal bersambung (webtoon).
+/// Reader: vertikal bersambung (webtoon) atau horizontal halaman-per-halaman.
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({
     super.key,
@@ -40,9 +41,12 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage>
     with WidgetsBindingObserver {
-  /// Dibuat saat lebar layar sudah diketahui, supaya bisa langsung dimulai
-  /// dari posisi tersimpan tanpa melompat.
+  /// Mode vertikal. Dibuat saat lebar layar sudah diketahui, supaya bisa
+  /// langsung dimulai dari posisi tersimpan tanpa melompat.
   ScrollController? _scrollController;
+
+  /// Mode horizontal.
+  PageController? _pageController;
 
   /// Tinggi dibagi lebar tiap halaman yang sudah termuat.
   final Map<int, double> _aspects = {};
@@ -56,23 +60,32 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   double _pageWidth = 0;
   int _pageCount = 0;
 
-  /// Posisi gulir terakhir dalam piksel. Disimpan sendiri karena saat
-  /// dispose() controller sudah lepas dari daftar.
+  /// Posisi gulir terakhir (mode vertikal) dalam piksel. Disimpan sendiri
+  /// karena saat dispose() controller sudah lepas dari daftar.
   double _lastOffset = 0;
 
   bool _progressResolved = false;
   ReadingProgress? _initialProgress;
   bool _firstOpenRegistered = false;
 
+  /// Posisi tersimpan hanya dipakai untuk membuka pertama kali. Setelah itu
+  /// (misalnya ganti mode) posisi mengikuti halaman yang sedang dibaca.
+  bool _resumeConsumed = false;
+
+  /// Mode yang sedang tampil. Null sebelum build pertama.
+  bool? _wasHorizontal;
+
   /// Nilai slider selama digeser. Null jika tidak sedang digeser.
   double? _dragValue;
   int? _lastSeekIndex;
 
-  /// Halaman tujuan lompatan slider. Selama diisi, posisinya dikoreksi tiap
-  /// kali gambar di atasnya selesai dimuat dan mengubah tinggi.
+  /// Halaman tujuan lompatan slider (mode vertikal). Selama diisi, posisinya
+  /// dikoreksi tiap kali gambar di atasnya selesai dimuat dan mengubah tinggi.
   int? _anchorIndex;
   Timer? _anchorTimer;
   bool _anchorScheduled = false;
+
+  bool get _isHorizontal => _wasHorizontal ?? false;
 
   ComicKey get _comicKey =>
       (sourceId: widget.sourceId, comicId: widget.comicId);
@@ -120,6 +133,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     unawaited(_saver.flush());
     _scrollController?.removeListener(_onScroll);
     _scrollController?.dispose();
+    _pageController?.dispose();
     unawaited(_screenAwake.set(false));
     unawaited(_systemUi.leaveReader());
     super.dispose();
@@ -132,9 +146,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   ReaderSnapshot? _snapshot() {
     if (_pageWidth == 0 || _pageCount == 0) return null;
+    // Kedua mode menyimpan posisi dalam satuan yang sama (lebar layar), jadi
+    // progres bisa dilanjutkan di mode mana pun.
+    final offsetPixels = _isHorizontal
+        ? _offsetOfPage(_currentIndex)
+        : _lastOffset;
     return (
       pageIndex: _currentIndex,
-      scrollOffset: _lastOffset / _pageWidth,
+      scrollOffset: offsetPixels / _pageWidth,
       pageCount: _pageCount,
       aspects: [for (var i = 0; i < _pageCount; i++) _aspects[i]],
     );
@@ -151,18 +170,68 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _currentIndex = progress.pageIndex < 0 ? 0 : progress.pageIndex;
   }
 
-  ScrollController _controllerFor(double width) {
+  double _offsetOfPage(int index) => pageOffsetOf(
+    index: index,
+    pageWidth: _pageWidth,
+    aspectOf: (i) => _aspects[i],
+  );
+
+  /// Dipanggil saat mode berganti antara vertikal dan horizontal: controller
+  /// lama dilepas, yang baru dibuat dari halaman yang sedang dibaca.
+  void _syncMode({required bool horizontal}) {
+    final previous = _wasHorizontal;
+    _wasHorizontal = horizontal;
+    if (previous == null || previous == horizontal) return;
+
+    final oldScroll = _scrollController;
+    final oldPage = _pageController;
+    _scrollController = null;
+    _pageController = null;
+    _anchorIndex = null;
+    _dragValue = null;
+    _lastSeekIndex = null;
+
+    // Controller baru dibuang setelah subtree lamanya hilang dari layar.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldScroll?.removeListener(_onScroll);
+      oldScroll?.dispose();
+      oldPage?.dispose();
+    });
+  }
+
+  ScrollController _verticalController(double width) {
     final existing = _scrollController;
     if (existing != null) return existing;
 
     final saved = _initialProgress;
-    final resume = saved != null && !saved.isCompleted;
-    final offset = resume ? saved.scrollOffset * width : 0.0;
+    final double offset;
+    if (!_resumeConsumed && saved != null && !saved.isCompleted) {
+      offset = saved.scrollOffset * width;
+    } else {
+      offset = _offsetOfPage(_currentIndex);
+    }
+    _resumeConsumed = true;
     _lastOffset = offset;
 
     final controller = ScrollController(initialScrollOffset: offset)
       ..addListener(_onScroll);
     _scrollController = controller;
+    return controller;
+  }
+
+  PageController _horizontalController() {
+    final existing = _pageController;
+    if (existing != null) return existing;
+
+    _resumeConsumed = true;
+    final last = _pageCount > 0 ? _pageCount - 1 : 0;
+    final initial = _currentIndex < 0
+        ? 0
+        : (_currentIndex > last ? last : _currentIndex);
+    _currentIndex = initial;
+
+    final controller = PageController(initialPage: initial);
+    _pageController = controller;
     return controller;
   }
 
@@ -186,30 +255,59 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _saver.schedule();
   }
 
-  double _offsetOfPage(int index) => pageOffsetOf(
-    index: index,
-    pageWidth: _pageWidth,
-    aspectOf: (i) => _aspects[i],
-  );
+  void _onPageChanged(int page) {
+    if (_pageCount == 0) return;
+    // Halaman terakhir pada PageView adalah halaman "akhir chapter".
+    final index = page < _pageCount ? page : _pageCount - 1;
+    if (index != _currentIndex) setState(() => _currentIndex = index);
+    _saver.schedule();
+  }
 
-  /// Slider digeser: pindah ke halaman terdekat dan jaga posisinya.
+  /// Pindah halaman dari ketukan tepi layar (mode horizontal).
+  void _turnPage(int delta) {
+    final controller = _pageController;
+    if (controller == null || !controller.hasClients) return;
+
+    final current = controller.page?.round() ?? _currentIndex;
+    var target = current + delta;
+    if (target < 0) target = 0;
+    if (target > _pageCount) target = _pageCount;
+    if (target == current) return;
+
+    unawaited(
+      controller.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  /// Slider digeser: pindah ke halaman terdekat.
   void _seekTo(double value) {
-    final controller = _scrollController;
-    if (controller == null ||
-        !controller.hasClients ||
-        _pageCount == 0 ||
-        _pageWidth == 0) {
-      return;
-    }
+    if (_pageCount == 0 || _pageWidth == 0) return;
 
     final last = (_pageCount - 1).toDouble();
     final clamped = value < 0 ? 0.0 : (value > last ? last : value);
-    setState(() => _dragValue = clamped);
-
     final index = clamped.round();
+
+    if (_isHorizontal) {
+      final controller = _pageController;
+      if (controller == null || !controller.hasClients) return;
+      setState(() => _dragValue = clamped);
+      if (index == _lastSeekIndex) return;
+      _lastSeekIndex = index;
+      controller.jumpToPage(index);
+      return;
+    }
+
+    final controller = _scrollController;
+    if (controller == null || !controller.hasClients) return;
+    setState(() => _dragValue = clamped);
     if (index == _lastSeekIndex) return;
     _lastSeekIndex = index;
 
+    // Menjaga halaman tujuan di atas layar selama gambar di atasnya memuat.
     _anchorIndex = index;
     _anchorTimer?.cancel();
     _anchorTimer = Timer(const Duration(milliseconds: 1500), () {
@@ -281,13 +379,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   @override
   Widget build(BuildContext context) {
-    final settings =
-        ref.watch(readerSettingsProvider).value ?? ReaderSettings.defaults;
+    final settingsAsync = ref.watch(readerSettingsProvider);
+    final settings = settingsAsync.value ?? ReaderSettings.defaults;
     final background = settings.background;
 
     final saved = ref.watch(savedProgressProvider(_readerKey));
     if (!_progressResolved) {
-      if (saved.isLoading) {
+      if (saved.isLoading || settingsAsync.isLoading) {
         return Scaffold(
           backgroundColor: background.color,
           body: const Center(child: CircularProgressIndicator()),
@@ -367,6 +465,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     : '${displayIndex + 1} / $pageCount',
                 pageCount: pageCount,
                 sliderValue: sliderValue,
+                reverseSlider: settings.readingMode.isRtl,
                 onSeek: _seekTo,
                 onSeekEnd: _endSeek,
                 onPrevious: neighbors.previous == null
@@ -392,12 +491,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
         final dpr = MediaQuery.devicePixelRatioOf(context);
         final decodeWidth = (width * dpr).round();
         _pageWidth = width;
         _pageCount = pages.length;
-        final viewport = Size(width, constraints.maxHeight);
-        final controller = _controllerFor(width);
+
+        final horizontal = settings.readingMode.isHorizontal;
+        _syncMode(horizontal: horizontal);
 
         // Chapter yang belum pernah dibaca langsung tercatat di riwayat.
         if (_initialProgress == null && !_firstOpenRegistered) {
@@ -407,53 +508,140 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           });
         }
 
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          // Hanya ketukan di zona tengah yang mengubah kontrol.
-          onTapUp: (details) {
-            if (isCenterTap(position: details.localPosition, size: viewport)) {
-              _toggleControls();
-            }
-          },
-          child: NotificationListener<ScrollStartNotification>(
-            // Pengguna menggulir sendiri: lepaskan penjagaan posisi.
-            onNotification: (notification) {
-              if (notification.dragDetails != null) _anchorIndex = null;
-              return false;
-            },
-            child: ListView.builder(
-              controller: controller,
-              padding: EdgeInsets.zero,
-              scrollCacheExtent: const ScrollCacheExtent.viewport(1.5),
-              itemCount: pages.length + 1,
-              itemBuilder: (context, index) {
-                if (index == pages.length) {
-                  return _EndOfChapter(
-                    next: neighbors.next,
-                    onNext: neighbors.next == null
-                        ? null
-                        : () => _goTo(neighbors.next!),
-                    onBack: _back,
-                  );
-                }
-                final page = pages[index];
-                return ReaderPageImage(
-                  key: ValueKey(page.imageUrl),
-                  url: page.imageUrl,
-                  number: index + 1,
-                  width: width,
-                  decodeWidth: decodeWidth,
-                  knownAspect: _aspects[index],
-                  onAspect: (aspect) => _onPageAspect(index, aspect),
-                  placeholderColor: settings.background.placeholderColor,
-                  placeholderTextColor:
-                      settings.background.placeholderTextColor,
-                );
-              },
-            ),
-          ),
+        final end = _EndOfChapter(
+          next: neighbors.next,
+          onNext: neighbors.next == null ? null : () => _goTo(neighbors.next!),
+          onBack: _back,
         );
+
+        return horizontal
+            ? _buildHorizontal(
+                pages: pages,
+                settings: settings,
+                width: width,
+                height: height,
+                decodeWidth: decodeWidth,
+                end: end,
+              )
+            : _buildVertical(
+                pages: pages,
+                settings: settings,
+                width: width,
+                height: height,
+                decodeWidth: decodeWidth,
+                end: end,
+              );
       },
+    );
+  }
+
+  Widget _buildVertical({
+    required List<ChapterPage> pages,
+    required ReaderSettings settings,
+    required double width,
+    required double height,
+    required int decodeWidth,
+    required Widget end,
+  }) {
+    final viewport = Size(width, height);
+    final controller = _verticalController(width);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      // Hanya ketukan di zona tengah yang mengubah kontrol.
+      onTapUp: (details) {
+        if (isCenterTap(position: details.localPosition, size: viewport)) {
+          _toggleControls();
+        }
+      },
+      child: NotificationListener<ScrollStartNotification>(
+        // Pengguna menggulir sendiri: lepaskan penjagaan posisi.
+        onNotification: (notification) {
+          if (notification.dragDetails != null) _anchorIndex = null;
+          return false;
+        },
+        child: ListView.builder(
+          controller: controller,
+          padding: EdgeInsets.zero,
+          scrollCacheExtent: const ScrollCacheExtent.viewport(1.5),
+          itemCount: pages.length + 1,
+          itemBuilder: (context, index) {
+            if (index == pages.length) return end;
+            final page = pages[index];
+            return ReaderPageImage(
+              key: ValueKey(page.imageUrl),
+              url: page.imageUrl,
+              number: index + 1,
+              width: width,
+              decodeWidth: decodeWidth,
+              knownAspect: _aspects[index],
+              onAspect: (aspect) => _onPageAspect(index, aspect),
+              placeholderColor: settings.background.placeholderColor,
+              placeholderTextColor: settings.background.placeholderTextColor,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHorizontal({
+    required List<ChapterPage> pages,
+    required ReaderSettings settings,
+    required double width,
+    required double height,
+    required int decodeWidth,
+    required Widget end,
+  }) {
+    final rtl = settings.readingMode.isRtl;
+    final controller = _horizontalController();
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      // Ketuk tepi memindah halaman, ketuk tengah mengubah kontrol.
+      onTapUp: (details) {
+        final delta = pageTurnForTap(
+          x: details.localPosition.dx,
+          width: width,
+          rtl: rtl,
+        );
+        if (delta == 0) {
+          _toggleControls();
+        } else {
+          _turnPage(delta);
+        }
+      },
+      child: PageView.builder(
+        controller: controller,
+        reverse: rtl,
+        allowImplicitScrolling: true,
+        itemCount: pages.length + 1,
+        onPageChanged: _onPageChanged,
+        itemBuilder: (context, index) {
+          if (index == pages.length) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: height),
+                child: Center(child: end),
+              ),
+            );
+          }
+          final page = pages[index];
+          return HorizontalPageImage(
+            key: ValueKey(page.imageUrl),
+            url: page.imageUrl,
+            number: index + 1,
+            width: width,
+            height: height,
+            decodeWidth: decodeWidth,
+            fit: settings.pageFit,
+            knownAspect: _aspects[index],
+            onAspect: (aspect) => _onPageAspect(index, aspect),
+            placeholderColor: settings.background.placeholderColor,
+            placeholderTextColor: settings.background.placeholderTextColor,
+          );
+        },
+      ),
     );
   }
 }
@@ -572,6 +760,7 @@ class _BottomBar extends StatelessWidget {
     required this.label,
     required this.pageCount,
     required this.sliderValue,
+    required this.reverseSlider,
     required this.onSeek,
     required this.onSeekEnd,
     required this.onPrevious,
@@ -581,6 +770,9 @@ class _BottomBar extends StatelessWidget {
   final String label;
   final int pageCount;
   final double sliderValue;
+
+  /// Slider dibalik (maju ke kiri) untuk mode kanan ke kiri.
+  final bool reverseSlider;
   final ValueChanged<double> onSeek;
   final VoidCallback onSeekEnd;
   final VoidCallback? onPrevious;
@@ -607,12 +799,17 @@ class _BottomBar extends StatelessWidget {
               ),
               Text(label, style: Theme.of(context).textTheme.titleSmall),
               Expanded(
-                child: Slider(
-                  value: enabled ? sliderValue : 0,
-                  min: 0,
-                  max: max,
-                  onChanged: enabled ? onSeek : null,
-                  onChangeEnd: enabled ? (_) => onSeekEnd() : null,
+                child: Directionality(
+                  textDirection: reverseSlider
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  child: Slider(
+                    value: enabled ? sliderValue : 0,
+                    min: 0,
+                    max: max,
+                    onChanged: enabled ? onSeek : null,
+                    onChangeEnd: enabled ? (_) => onSeekEnd() : null,
+                  ),
                 ),
               ),
               IconButton(
@@ -648,6 +845,7 @@ class _EndOfChapter extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 120),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'Akhir chapter',

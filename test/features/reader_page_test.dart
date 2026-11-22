@@ -343,6 +343,195 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  ReaderSettings horizontal(ReadingMode mode, {PageFit fit = PageFit.height}) =>
+      ReaderSettings(readingMode: mode, pageFit: fit);
+
+  testWidgets('mode horizontal: ketuk tepi memindah halaman', (tester) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalLtr),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
+    expect(find.text('1 / 3'), findsOneWidget);
+
+    await tester.tapAt(const Offset(750, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsOneWidget);
+
+    await tester.tapAt(const Offset(50, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 3'), findsOneWidget);
+  });
+
+  testWidgets('mode kanan ke kiri: arah ketuk tepi dibalik', (tester) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalRtl),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Halaman berikutnya ada di sebelah kiri.
+    await tester.tapAt(const Offset(50, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsOneWidget);
+
+    await tester.tapAt(const Offset(750, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 3'), findsOneWidget);
+  });
+
+  testWidgets('mode horizontal: ketuk tengah menyembunyikan kontrol', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalLtr),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Judul k1'), findsOneWidget);
+
+    await tester.tapAt(const Offset(400, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('Judul k1'), findsNothing);
+
+    // Halaman tidak berpindah.
+    await tester.tapAt(const Offset(400, 800));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 3'), findsOneWidget);
+  });
+
+  testWidgets('mode horizontal: slider memindah halaman', (tester) async {
+    useTallScreen(tester);
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalLtr),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Slider)),
+    );
+    await gesture.moveBy(const Offset(700, 0));
+    await tester.pump();
+    expect(find.text('3 / 3'), findsOneWidget);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 3'), findsOneWidget);
+  });
+
+  testWidgets('mode horizontal melanjutkan dari halaman tersimpan', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(saved(page: 1, offset: 1.4));
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalLtr),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        progress: repo,
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 / 3'), findsOneWidget);
+  });
+
+  testWidgets('mode horizontal menyimpan posisi dalam satuan yang sama', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository();
+    final store = InMemoryReaderSettingsStore(
+      horizontal(ReadingMode.horizontalLtr),
+    );
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        progress: repo,
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(750, 800));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+
+    expect(repo.saved, isNotEmpty);
+    final last = repo.saved.last;
+    expect(last.pageIndex, 1);
+    // Tepi atas halaman ke-2 = 1 halaman (tinggi bawaan 1,4 kali lebar).
+    expect(last.scrollOffset, closeTo(1.4, 0.001));
+  });
+
+  testWidgets('mengganti mode lewat pengaturan mempertahankan halaman', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      testApp(source: source(), router: readerRouter('c2')),
+    );
+    await tester.pumpAndSettle();
+
+    // Pindah ke halaman terakhir lewat slider (mode vertikal).
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Slider)),
+    );
+    await gesture.moveBy(const Offset(700, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Pengaturan reader'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kiri → Kanan'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
+    expect(find.text('3 / 3'), findsOneWidget);
+  });
+
   testWidgets('slider nonaktif jika chapter hanya satu halaman', (
     tester,
   ) async {

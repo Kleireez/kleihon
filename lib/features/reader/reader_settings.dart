@@ -42,27 +42,75 @@ extension ReaderBackgroundStyle on ReaderBackground {
   };
 }
 
+/// Cara halaman ditampilkan dan digeser.
+enum ReadingMode { vertical, horizontalLtr, horizontalRtl }
+
+extension ReadingModeInfo on ReadingMode {
+  String get label => switch (this) {
+    ReadingMode.vertical => 'Vertikal',
+    ReadingMode.horizontalLtr => 'Kiri → Kanan',
+    ReadingMode.horizontalRtl => 'Kanan → Kiri',
+  };
+
+  bool get isHorizontal => this != ReadingMode.vertical;
+
+  /// Halaman berikutnya berada di sebelah kiri (gaya manga Jepang).
+  bool get isRtl => this == ReadingMode.horizontalRtl;
+}
+
+/// Penyesuaian halaman pada mode horizontal.
+enum PageFit { width, height }
+
+extension PageFitInfo on PageFit {
+  String get label => switch (this) {
+    PageFit.width => 'Lebar',
+    PageFit.height => 'Tinggi',
+  };
+}
+
+T _byName<T extends Enum>(List<T> values, Object? name, T fallback) {
+  for (final value in values) {
+    if (value.name == name) return value;
+  }
+  return fallback;
+}
+
 class ReaderSettings {
   const ReaderSettings({
     this.background = ReaderBackground.black,
     this.keepScreenOn = true,
+    this.readingMode = ReadingMode.vertical,
+    this.pageFit = PageFit.height,
   });
 
   static const ReaderSettings defaults = ReaderSettings();
 
   final ReaderBackground background;
   final bool keepScreenOn;
+  final ReadingMode readingMode;
 
-  ReaderSettings copyWith({ReaderBackground? background, bool? keepScreenOn}) {
+  /// Hanya berlaku pada mode horizontal.
+  final PageFit pageFit;
+
+  ReaderSettings copyWith({
+    ReaderBackground? background,
+    bool? keepScreenOn,
+    ReadingMode? readingMode,
+    PageFit? pageFit,
+  }) {
     return ReaderSettings(
       background: background ?? this.background,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+      readingMode: readingMode ?? this.readingMode,
+      pageFit: pageFit ?? this.pageFit,
     );
   }
 
   Map<String, Object?> toJson() => {
     'background': background.name,
     'keepScreenOn': keepScreenOn,
+    'readingMode': readingMode.name,
+    'pageFit': pageFit.name,
   };
 
   /// Toleran terhadap data rusak atau dari versi lain: bagian yang tidak
@@ -70,17 +118,21 @@ class ReaderSettings {
   factory ReaderSettings.fromJson(Object? json) {
     if (json is! Map) return defaults;
 
-    final name = json['background'];
-    final background =
-        ReaderBackground.values
-            .where((value) => value.name == name)
-            .firstOrNull ??
-        defaults.background;
     final keep = json['keepScreenOn'];
 
     return ReaderSettings(
-      background: background,
+      background: _byName(
+        ReaderBackground.values,
+        json['background'],
+        defaults.background,
+      ),
       keepScreenOn: keep is bool ? keep : defaults.keepScreenOn,
+      readingMode: _byName(
+        ReadingMode.values,
+        json['readingMode'],
+        defaults.readingMode,
+      ),
+      pageFit: _byName(PageFit.values, json['pageFit'], defaults.pageFit),
     );
   }
 
@@ -88,8 +140,11 @@ class ReaderSettings {
   bool operator ==(Object other) =>
       other is ReaderSettings &&
       other.background == background &&
-      other.keepScreenOn == keepScreenOn;
+      other.keepScreenOn == keepScreenOn &&
+      other.readingMode == readingMode &&
+      other.pageFit == pageFit;
 
   @override
-  int get hashCode => Object.hash(background, keepScreenOn);
+  int get hashCode =>
+      Object.hash(background, keepScreenOn, readingMode, pageFit);
 }

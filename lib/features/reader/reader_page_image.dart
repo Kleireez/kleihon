@@ -4,6 +4,10 @@ import 'package:material_ui/material_ui.dart';
 
 /// Satu halaman reader. Mendukung URI file:// dan http(s). Gambar didekode
 /// sesuai lebar layar dan tingginya dilaporkan lewat [onAspect].
+///
+/// Tanpa [boxHeight] (mode vertikal dan fit lebar): halaman memenuhi lebar
+/// dan tingginya mengikuti gambar. Dengan [boxHeight] (fit tinggi): seluruh
+/// halaman diletakkan utuh di dalam kotak setinggi itu.
 class ReaderPageImage extends StatefulWidget {
   const ReaderPageImage({
     super.key,
@@ -13,6 +17,7 @@ class ReaderPageImage extends StatefulWidget {
     required this.decodeWidth,
     required this.onAspect,
     this.knownAspect,
+    this.boxHeight,
     this.placeholderColor = const Color(0xFF101010),
     this.placeholderTextColor = const Color(0xFF6B6B6B),
   });
@@ -30,6 +35,9 @@ class ReaderPageImage extends StatefulWidget {
 
   /// Tinggi dibagi lebar jika sudah pernah diketahui.
   final double? knownAspect;
+
+  /// Tinggi kotak untuk mode fit tinggi. Null = mengikuti lebar.
+  final double? boxHeight;
 
   final void Function(double aspect) onAspect;
 
@@ -143,19 +151,22 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
 
   @override
   Widget build(BuildContext context) {
+    final boxHeight = widget.boxHeight;
+
     final info = _info;
     if (info != null) {
       return RawImage(
         image: info.image,
         scale: info.scale,
         width: double.infinity,
-        fit: BoxFit.fitWidth,
+        height: boxHeight,
+        fit: boxHeight == null ? BoxFit.fitWidth : BoxFit.contain,
       );
     }
 
     if (_error != null) {
       return Container(
-        height: widget.width * 0.7,
+        height: boxHeight ?? widget.width * 0.7,
         color: widget.placeholderColor,
         alignment: Alignment.center,
         child: Column(
@@ -179,7 +190,7 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
     // Tanpa animasi: tinggi perkiraan sampai gambar termuat. Perkiraan
     // bawaan (1,4) harus sama dengan defaultAspect di pageIndexAt.
     return Container(
-      height: widget.width * (widget.knownAspect ?? 1.4),
+      height: boxHeight ?? widget.width * (widget.knownAspect ?? 1.4),
       color: widget.placeholderColor,
       alignment: Alignment.center,
       child: Text(
