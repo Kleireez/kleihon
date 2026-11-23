@@ -9,7 +9,14 @@ Comic testComic(String sourceId, String remoteId, [String? title]) => Comic(
   title: title ?? 'Judul $remoteId',
   sourceUrl: 'https://example.invalid/$remoteId',
 );
-
+Comic testComicWithAlternatives(String title, List<String> alternatives) =>
+    Comic(
+      sourceId: 's',
+      remoteId: title.toLowerCase(),
+      title: title,
+      sourceUrl: 'https://example.invalid/${title.toLowerCase()}',
+      alternativeTitles: alternatives,
+    );
 Chapter testChapter(String sourceId, String comicRemoteId, String remoteId) =>
     Chapter(
       sourceId: sourceId,
