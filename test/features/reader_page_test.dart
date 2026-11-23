@@ -8,10 +8,13 @@ import 'package:kleihon/features/reader/reader_page.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:kleihon/features/reader/reader_page_image.dart';
 import 'package:kleihon/features/reader/reader_settings.dart';
+import 'package:kleihon/domain/entities/bookmark.dart';
+import 'package:kleihon/domain/entities/reading_status.dart';
 
 import '../helpers/fake_reader_services.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
+import '../helpers/fake_bookmark_repository.dart';
 
 import 'package:kleihon/domain/entities/reading_progress.dart';
 
@@ -698,5 +701,118 @@ void main() {
       ReaderBackground.sepia.color,
     );
     expect(awake.calls.last, isFalse);
+  });
+
+  Bookmark bookmarkOf(ReadingStatus status) => Bookmark(
+    sourceId: 'local',
+    comicRemoteId: 'k1',
+    status: status,
+    followUpdates: false,
+    createdAt: DateTime(2026, 11, 20),
+  );
+
+  Future<ReadingStatus?> statusOf(FakeBookmarkRepository repo) async =>
+      (await repo.getBookmark(sourceId: 'local', comicRemoteId: 'k1'))?.status;
+
+  testWidgets(
+    'membuka chapter baru: bookmark belum dibaca menjadi sedang dibaca',
+    (tester) async {
+      useTallScreen(tester);
+      final bookmarks = FakeBookmarkRepository()
+        ..seed(bookmarkOf(ReadingStatus.unread));
+      await tester.pumpWidget(
+        testApp(
+          source: source(),
+          router: readerRouter('c2'),
+          bookmarks: bookmarks,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Kembali'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(await statusOf(bookmarks), ReadingStatus.reading);
+    },
+  );
+
+  testWidgets('menyelesaikan chapter terakhir: status menjadi selesai', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final bookmarks = FakeBookmarkRepository()
+      ..seed(bookmarkOf(ReadingStatus.reading));
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c3'),
+        bookmarks: bookmarks,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Ke halaman terakhir lewat slider, lalu keluar.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Slider)),
+    );
+    await gesture.moveBy(const Offset(700, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(await statusOf(bookmarks), ReadingStatus.completed);
+  });
+
+  testWidgets('komik tanpa bookmark tidak ditambahkan otomatis', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final bookmarks = FakeBookmarkRepository();
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        bookmarks: bookmarks,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(await statusOf(bookmarks), isNull);
+    expect(bookmarks.added, isEmpty);
+  });
+
+  testWidgets('status manual tidak ditimpa saat membaca ulang chapter lama', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final repo = FakeReadingProgressRepository()
+      ..seed(saved(page: 1, offset: 0.5));
+    final bookmarks = FakeBookmarkRepository()
+      ..seed(bookmarkOf(ReadingStatus.completed));
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        progress: repo,
+        bookmarks: bookmarks,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Kembali'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(await statusOf(bookmarks), ReadingStatus.completed);
   });
 }

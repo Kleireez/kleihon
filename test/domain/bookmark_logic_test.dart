@@ -206,6 +206,33 @@ void main() {
     });
   });
 
+  group('countByCategory', () {
+    test('menghitung tiap kategori', () {
+      final entries = [
+        entry('A', status: ReadingStatus.reading, follow: true),
+        entry('B', status: ReadingStatus.reading),
+        entry('C', status: ReadingStatus.unread),
+        entry('D', status: ReadingStatus.completed, follow: true),
+      ];
+
+      final counts = countByCategory(entries);
+
+      expect(counts[LibraryCategory.all], 4);
+      expect(counts[LibraryCategory.reading], 2);
+      expect(counts[LibraryCategory.unread], 1);
+      expect(counts[LibraryCategory.completed], 1);
+      expect(counts[LibraryCategory.following], 2);
+    });
+
+    test('daftar kosong menghasilkan nol di semua kategori', () {
+      final counts = countByCategory(const []);
+
+      for (final category in LibraryCategory.values) {
+        expect(counts[category], 0);
+      }
+    });
+  });
+
   group('ToggleBookmark', () {
     test('menambah lalu menghapus dan melaporkan keadaan akhir', () async {
       final repository = FakeBookmarkRepository();

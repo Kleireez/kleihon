@@ -62,3 +62,9 @@ List<LibraryEntry> sortLibrary(List<LibraryEntry> entries, LibrarySort sort) {
   }
   return sorted;
 }
+
+/// Jumlah komik per kategori (tidak memperhitungkan kata kunci).
+Map<LibraryCategory, int> countByCategory(List<LibraryEntry> entries) => {
+  for (final category in LibraryCategory.values)
+    category: filterLibrary(entries, category: category).length,
+};

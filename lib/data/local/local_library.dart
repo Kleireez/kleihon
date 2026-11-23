@@ -308,10 +308,9 @@ class LocalLibrary {
     await _deleteIfExists(await layout.resolveDirectory(chapter.chapterUrl));
   }
 
-  /// Menghapus komik, semua chapter, progres, riwayat, dan seluruh berkasnya.
-  /// Data di database dihapus lebih dulu dalam satu transaksi: jika ditolak
-  /// (misalnya masih ada bookmark), tidak ada yang berubah dan tidak ada
-  /// berkas yang terhapus.
+  /// Menghapus komik, semua chapter, bookmark, progres, riwayat, dan seluruh
+  /// berkasnya. Data di database dihapus lebih dulu dalam satu transaksi:
+  /// jika gagal, tidak ada yang berubah dan tidak ada berkas yang terhapus.
   Future<void> deleteComic(String comicRemoteId) async {
     final comicId = makeEntityId(localSourceId, comicRemoteId);
     final comic = await (_db.select(
@@ -326,6 +325,12 @@ class LocalLibrary {
     }
 
     await _db.transaction(() async {
+      await (_db.delete(
+        _db.bookmarks,
+      )..where((t) => t.comicId.equals(comicId))).go();
+      await (_db.delete(
+        _db.downloads,
+      )..where((t) => t.comicId.equals(comicId))).go();
       await (_db.delete(
         _db.readingProgressEntries,
       )..where((t) => t.comicId.equals(comicId))).go();

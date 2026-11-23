@@ -7,12 +7,17 @@ import '../../core/errors/app_exception.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/local_library_layout.dart';
 import '../../data/local/local_providers.dart';
+import '../../domain/entities/bookmark.dart';
 import '../../domain/entities/chapter.dart';
 import '../../domain/entities/comic.dart';
 import '../../domain/entities/reading_progress.dart';
 import '../../domain/usecases/continue_reading.dart';
+import '../../shared/providers/bookmark_providers.dart';
 import '../../shared/providers/library_revision_provider.dart';
 import '../../shared/widgets/comic_cover.dart';
+import '../library/bookmark_sheet.dart';
+import '../library/library_labels.dart';
+import '../library/library_providers.dart';
 import 'comic_detail_providers.dart';
 import 'progress_labels.dart';
 
@@ -53,6 +58,63 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     );
   }
 
+  Future<void> _toggleBookmark(Bookmark? current) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final repository = ref.read(bookmarkRepositoryProvider);
+
+    try {
+      if (current == null) {
+        await repository.addBookmark(
+          sourceId: widget.sourceId,
+          comicRemoteId: widget.comicId,
+        );
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Ditambahkan ke Library.')),
+        );
+        return;
+      }
+
+      await repository.removeBookmark(
+        sourceId: widget.sourceId,
+        comicRemoteId: widget.comicId,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Dihapus dari Library.'),
+          action: SnackBarAction(
+            label: 'Urungkan',
+            onPressed: () async {
+              await repository.addBookmark(
+                sourceId: widget.sourceId,
+                comicRemoteId: widget.comicId,
+                status: current.status,
+              );
+              if (current.followUpdates) {
+                await repository.setFollowUpdates(
+                  sourceId: widget.sourceId,
+                  comicRemoteId: widget.comicId,
+                  follow: true,
+                );
+              }
+            },
+          ),
+        ),
+      );
+    } catch (e, s) {
+      appLogger.e('Gagal memperbarui Library', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal memperbarui Library.')),
+      );
+    }
+  }
+
+  void _openBookmarkSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => BookmarkSheet(comicKey: _key),
+    );
+  }
+
   Future<bool> _confirmDelete({
     required String title,
     required String message,
@@ -89,8 +151,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
       title: 'Hapus komik?',
       message:
           '"${data.comic.title}" beserta ${data.chapters.length} chapter dan '
-          'semua gambarnya akan dihapus dari perangkat. Tindakan ini tidak '
-          'bisa dibatalkan.',
+          'semua gambarnya akan dihapus dari perangkat. Bookmark dan progres '
+          'bacanya juga ikut terhapus. Tindakan ini tidak bisa dibatalkan.',
     );
     if (!confirmed || !mounted) return;
 
@@ -150,6 +212,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
     final detail = ref.watch(comicDetailProvider(_key));
     final data = detail.value;
+    final bookmark = ref.watch(bookmarkProvider(_key)).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -159,6 +222,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (data != null)
+            IconButton(
+              tooltip: bookmark != null
+                  ? 'Hapus dari Library'
+                  : 'Tambah ke Library',
+              icon: Icon(
+                bookmark != null ? Icons.bookmark : Icons.bookmark_border,
+              ),
+              onPressed: () => _toggleBookmark(bookmark),
+            ),
           if (_isLocal && data != null)
             PopupMenuButton<_ComicAction>(
               tooltip: 'Opsi komik',
@@ -191,12 +264,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           error: error,
           onRetry: () => ref.invalidate(comicDetailProvider(_key)),
         ),
-        data: (data) => _buildContent(context, data),
+        data: (data) => _buildContent(context, data, bookmark),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, ComicDetailData data) {
+  Widget _buildContent(
+    BuildContext context,
+    ComicDetailData data,
+    Bookmark? bookmark,
+  ) {
     final progress =
         ref.watch(comicProgressProvider(_key)).value ??
         const <String, ReadingProgress>{};
@@ -222,6 +299,20 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               child: _ReadButton(target: target, first: first, onOpen: _open),
             ),
           ),
+          if (bookmark != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openBookmarkSheet,
+                    icon: const Icon(Icons.bookmark),
+                    label: Text('Status: ${bookmark.status.label}'),
+                  ),
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),

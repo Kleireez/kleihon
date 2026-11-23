@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../domain/usecases/bookmark_usecases.dart';
+import '../../shared/providers/bookmark_providers.dart';
 import '../../app/routes.dart';
+import '../../domain/repositories/bookmark_repository.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/chapter.dart';
 import '../../domain/entities/reading_progress.dart';
@@ -68,6 +71,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReadingProgress? _initialProgress;
   bool _firstOpenRegistered = false;
 
+  /// Dipakai untuk status baca otomatis.
+  bool _savedOnce = false;
+  bool _completionHandled = false;
+
+  /// Daftar chapter terakhir yang diketahui. Disimpan sendiri karena
+  /// penyimpanan terakhir dijalankan saat dispose(), ketika ref sudah tidak
+  /// boleh dipakai.
+  List<Chapter> _chapters = const [];
+  late final BookmarkRepository _bookmarks;
+
   /// Posisi tersimpan hanya dipakai untuk membuka pertama kali. Setelah itu
   /// (misalnya ganti mode) posisi mengikuti halaman yang sedang dibaca.
   bool _resumeConsumed = false;
@@ -116,12 +129,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       unawaited(_screenAwake.set(keepOn));
     }, fireImmediately: true);
 
+    _bookmarks = ref.read(bookmarkRepositoryProvider);
+
     _saver = ReaderProgressSaver(
       repository: ref.read(readingProgressRepositoryProvider),
       sourceId: widget.sourceId,
       comicRemoteId: widget.comicId,
       chapterRemoteId: widget.chapterId,
       snapshot: _snapshot,
+      onSaved: _afterProgressSaved,
     );
   }
 
@@ -142,6 +158,43 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) unawaited(_saver.flush());
+  }
+
+  /// Dipanggil setelah progres tersimpan: memperbarui status baca komik yang
+  /// di-bookmark sesuai aturan otomatis. Hanya bereaksi pada dua peristiwa
+  /// (mulai chapter baru, chapter terakhir baru selesai), jadi status yang
+  /// diubah manual tidak ditimpa oleh penyimpanan biasa.
+  Future<void> _afterProgressSaved(ReadingProgress saved) async {
+    final first = !_savedOnce && _initialProgress == null;
+    _savedOnce = true;
+
+    final justCompleted =
+        saved.isCompleted &&
+        !_completionHandled &&
+        !(_initialProgress?.isCompleted ?? false);
+    if (justCompleted) _completionHandled = true;
+    if (!first && !justCompleted) return;
+
+    final bookmark = await _bookmarks.getBookmark(
+      sourceId: widget.sourceId,
+      comicRemoteId: widget.comicId,
+    );
+    if (bookmark == null) return;
+
+    final neighbors = resolveChapterNeighbors(_chapters, widget.chapterId);
+    final next = autoStatusAfterProgress(
+      current: bookmark.status,
+      firstProgressForChapter: first,
+      chapterJustCompleted: justCompleted,
+      isLastChapter: neighbors.found && neighbors.next == null,
+    );
+    if (next == null) return;
+
+    await _bookmarks.setReadingStatus(
+      sourceId: widget.sourceId,
+      comicRemoteId: widget.comicId,
+      status: next,
+    );
   }
 
   ReaderSnapshot? _snapshot() {
@@ -397,6 +450,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
 
     final detail = ref.watch(comicDetailProvider(_comicKey));
+    _chapters = detail.value?.chapters ?? _chapters;
     final pages = ref.watch(chapterPagesProvider(_chapterKey));
     final neighbors = resolveChapterNeighbors(
       detail.value?.chapters ?? const <Chapter>[],

@@ -127,24 +127,18 @@ void main() {
     },
   );
 
-  test(
-    'hapus komik ditolak jika masih ada bookmark dan tidak menghapus apa pun',
-    () async {
-      final batch = await importThree();
-      await database
-          .into(database.bookmarks)
-          .insert(BookmarksCompanion.insert(comicId: batch.comicId));
+  test('hapus komik ikut menghapus bookmark-nya', () async {
+    final batch = await importThree();
+    await database
+        .into(database.bookmarks)
+        .insert(BookmarksCompanion.insert(comicId: batch.comicId));
 
-      await expectLater(
-        library.deleteComic(batch.comicRemoteId),
-        throwsA(anything),
-      );
+    await library.deleteComic(batch.comicRemoteId);
 
-      expect(await database.select(database.comics).get(), hasLength(1));
-      expect(await database.select(database.chapters).get(), hasLength(3));
-      expect(await chapterFolderExists(batch, 0), isTrue);
-    },
-  );
+    expect(await database.select(database.bookmarks).get(), isEmpty);
+    expect(await database.select(database.comics).get(), isEmpty);
+    expect(await chapterFolderExists(batch, 0), isFalse);
+  });
 
   test('menghapus yang tidak ada dianggap kesalahan pemanggil', () async {
     final batch = await importThree();
@@ -284,28 +278,5 @@ void main() {
       isEmpty,
     );
     expect(await database.select(database.comics).get(), isEmpty);
-  });
-
-  test('hapus komik yang ditolak bookmark tidak menghapus progres', () async {
-    final batch = await importThree();
-    await saveProgressFor(batch, 0);
-    await database
-        .into(database.bookmarks)
-        .insert(BookmarksCompanion.insert(comicId: batch.comicId));
-
-    await expectLater(
-      library.deleteComic(batch.comicRemoteId),
-      throwsA(anything),
-    );
-
-    expect(
-      await database.select(database.readingProgressEntries).get(),
-      hasLength(1),
-    );
-    expect(
-      await database.select(database.readingHistoryEntries).get(),
-      hasLength(1),
-    );
-    expect(await database.select(database.chapters).get(), hasLength(3));
   });
 }

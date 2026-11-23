@@ -21,6 +21,7 @@ void main() {
   ReaderProgressSaver makeSaver({
     FakeReadingProgressRepository? repo,
     ReaderSnapshot? Function()? snapshot,
+    Future<void> Function(ReadingProgress saved)? onSaved,
   }) {
     return ReaderProgressSaver(
       repository: repo ?? repository,
@@ -28,6 +29,7 @@ void main() {
       comicRemoteId: 'k',
       chapterRemoteId: 'c1',
       debounce: _debounce,
+      onSaved: onSaved,
       snapshot:
           snapshot ??
           () => (
@@ -118,4 +120,47 @@ void main() {
 
     await saver.flush();
   });
+
+  test(
+    'onSaved dipanggil setelah berhasil dengan progres yang disimpan',
+    () async {
+      final received = <ReadingProgress>[];
+      final saver = makeSaver(onSaved: (saved) async => received.add(saved));
+
+      page = 3;
+      saver.schedule();
+      await saver.flush();
+
+      expect(received, hasLength(1));
+      expect(received.single.pageIndex, 3);
+      expect(repository.saved.single, received.single);
+    },
+  );
+
+  test('onSaved tidak dipanggil jika penyimpanan gagal', () async {
+    var called = false;
+    final saver = makeSaver(
+      repo: _FailingRepository(),
+      onSaved: (saved) async => called = true,
+    );
+
+    saver.schedule();
+    await saver.flush();
+
+    expect(called, isFalse);
+  });
+
+  test(
+    'kegagalan di onSaved tidak melempar dan progres tetap tersimpan',
+    () async {
+      final saver = makeSaver(
+        onSaved: (saved) async => throw StateError('gagal status'),
+      );
+
+      saver.schedule();
+      await saver.flush();
+
+      expect(repository.saved, hasLength(1));
+    },
+  );
 }

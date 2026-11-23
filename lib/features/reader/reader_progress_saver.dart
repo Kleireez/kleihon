@@ -20,6 +20,7 @@ class ReaderProgressSaver {
     required this.comicRemoteId,
     required this.chapterRemoteId,
     required this.snapshot,
+    this.onSaved,
     this.debounce = const Duration(milliseconds: 800),
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
@@ -31,6 +32,11 @@ class ReaderProgressSaver {
 
   /// Mengambil keadaan reader saat ini. Null jika belum siap.
   final ReaderSnapshot? Function() snapshot;
+
+  /// Dipanggil setelah progres berhasil disimpan. Kegagalan di dalamnya
+  /// tidak mengganggu pembacaan.
+  final Future<void> Function(ReadingProgress saved)? onSaved;
+
   final Duration debounce;
   final DateTime Function() _clock;
 
@@ -56,22 +62,29 @@ class ReaderProgressSaver {
     final current = snapshot();
     if (current == null) return;
 
+    final progress = ReadingProgress(
+      sourceId: sourceId,
+      comicRemoteId: comicRemoteId,
+      chapterRemoteId: chapterRemoteId,
+      pageIndex: current.pageIndex,
+      pageCount: current.pageCount,
+      scrollOffset: current.scrollOffset,
+      aspects: current.aspects,
+      updatedAt: _clock(),
+    );
+
     try {
-      await repository.saveProgress(
-        ReadingProgress(
-          sourceId: sourceId,
-          comicRemoteId: comicRemoteId,
-          chapterRemoteId: chapterRemoteId,
-          pageIndex: current.pageIndex,
-          pageCount: current.pageCount,
-          scrollOffset: current.scrollOffset,
-          aspects: current.aspects,
-          updatedAt: _clock(),
-        ),
-      );
+      await repository.saveProgress(progress);
     } catch (e, stack) {
       // Progres adalah fitur pelengkap: kegagalan tidak boleh mengganggu baca.
       appLogger.w('Gagal menyimpan progres baca', error: e, stackTrace: stack);
+      return;
+    }
+
+    try {
+      await onSaved?.call(progress);
+    } catch (e, stack) {
+      appLogger.w('Gagal memperbarui status baca', error: e, stackTrace: stack);
     }
   }
 }

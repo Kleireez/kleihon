@@ -8,7 +8,10 @@ import 'package:kleihon/domain/entities/source_results.dart';
 import 'package:kleihon/features/comic_detail/comic_detail_page.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:kleihon/domain/entities/reading_progress.dart';
+import 'package:kleihon/domain/entities/bookmark.dart';
+import 'package:kleihon/domain/entities/reading_status.dart';
 
+import '../helpers/fake_bookmark_repository.dart';
 import '../helpers/fake_reading_progress_repository.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
@@ -395,5 +398,87 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('READER local/c1'), findsOneWidget);
+  });
+
+  testWidgets('tombol bookmark menambah dan menghapus dari Library', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final bookmarks = FakeBookmarkRepository();
+    await tester.pumpWidget(
+      testApp(
+        source: threeChapterSource(),
+        router: detailRouter(),
+        bookmarks: bookmarks,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Tambah ke Library'), findsOneWidget);
+    expect(find.textContaining('Status:'), findsNothing);
+
+    await tester.tap(find.byTooltip('Tambah ke Library'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await bookmarks.getBookmark(sourceId: 'local', comicRemoteId: 'k1'),
+      isNotNull,
+    );
+    expect(find.byTooltip('Hapus dari Library'), findsOneWidget);
+    expect(find.text('Status: Belum dibaca'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Hapus dari Library'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await bookmarks.getBookmark(sourceId: 'local', comicRemoteId: 'k1'),
+      isNull,
+    );
+    expect(find.text('Dihapus dari Library.'), findsOneWidget);
+  });
+
+  testWidgets('lembar status mengubah status baca dan ikuti update', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final bookmarks = FakeBookmarkRepository()
+      ..seed(
+        Bookmark(
+          sourceId: 'local',
+          comicRemoteId: 'k1',
+          status: ReadingStatus.unread,
+          followUpdates: false,
+          createdAt: DateTime(2026, 11, 20),
+        ),
+      );
+    await tester.pumpWidget(
+      testApp(
+        source: threeChapterSource(),
+        router: detailRouter(),
+        bookmarks: bookmarks,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Status: Belum dibaca'));
+    await tester.pumpAndSettle();
+    expect(find.text('Status baca'), findsOneWidget);
+
+    await tester.tap(find.text('Sedang dibaca'));
+    await tester.pumpAndSettle();
+    var bookmark = await bookmarks.getBookmark(
+      sourceId: 'local',
+      comicRemoteId: 'k1',
+    );
+    expect(bookmark?.status, ReadingStatus.reading);
+    expect(find.text('Status: Sedang dibaca'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    bookmark = await bookmarks.getBookmark(
+      sourceId: 'local',
+      comicRemoteId: 'k1',
+    );
+    expect(bookmark?.followUpdates, isTrue);
   });
 }
