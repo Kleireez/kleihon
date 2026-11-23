@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../features/history/history_page.dart';
 import '../features/library/library_page.dart';
 import '../features/comic_detail/comic_detail_page.dart';
 import '../features/comic_detail/cover_picker_page.dart';
@@ -51,10 +52,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.history,
-                builder: (c, s) => const PlaceholderPage(
-                  title: 'History',
-                  note: 'Riwayat membaca (Phase 5).',
-                ),
+                builder: (c, s) => const HistoryPage(),
               ),
             ],
           ),

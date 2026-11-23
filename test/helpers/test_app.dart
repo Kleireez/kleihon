@@ -8,11 +8,13 @@ import 'package:kleihon/features/reader/reader_settings_providers.dart';
 import 'package:kleihon/features/reader/reader_system_ui.dart';
 import 'package:kleihon/features/reader/screen_awake.dart';
 import 'package:kleihon/shared/providers/bookmark_providers.dart';
+import 'package:kleihon/shared/providers/history_providers.dart';
 import 'package:kleihon/shared/providers/reading_progress_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'fake_bookmark_repository.dart';
 import 'fake_comic_source.dart';
+import 'fake_history_repository.dart';
 import 'fake_reader_services.dart';
 import 'fake_reading_progress_repository.dart';
 
@@ -41,16 +43,18 @@ class NoopReaderSystemUi implements ReaderSystemUi {
 }
 
 /// Membungkus layar dengan sumber palsu. Isi [home] atau [router].
-/// [progress], [bookmarks], [settingsStore], dan [screenAwake] dapat diisi
-/// untuk menyiapkan atau memeriksa keadaan.
+/// [progress], [bookmarks], [history], [settingsStore], [screenAwake], dan
+/// [clock] dapat diisi untuk menyiapkan atau memeriksa keadaan.
 Widget testApp({
   required FakeComicSource source,
   Widget? home,
   GoRouter? router,
   FakeReadingProgressRepository? progress,
   FakeBookmarkRepository? bookmarks,
+  FakeHistoryRepository? history,
   InMemoryReaderSettingsStore? settingsStore,
   FakeScreenAwake? screenAwake,
+  DateTime Function()? clock,
 }) {
   assert(
     (home == null) != (router == null),
@@ -68,6 +72,10 @@ Widget testApp({
       bookmarkRepositoryProvider.overrideWithValue(
         bookmarks ?? FakeBookmarkRepository(),
       ),
+      historyRepositoryProvider.overrideWithValue(
+        history ?? FakeHistoryRepository(),
+      ),
+      historyClockProvider.overrideWithValue(clock ?? DateTime.now),
       readerSettingsStoreProvider.overrideWithValue(
         settingsStore ?? InMemoryReaderSettingsStore(),
       ),
