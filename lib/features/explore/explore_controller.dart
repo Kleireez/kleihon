@@ -100,6 +100,14 @@ class ExploreController extends Notifier<ExploreState> {
     );
   }
 
+  /// Mencari seketika, tanpa jeda debounce (tombol cari atau memilih saran).
+  void searchNow(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    if (query == state.query) return;
+    unawaited(_loadFirst(query: query));
+  }
+
   Future<void> refresh() {
     _debounce?.cancel();
     return _loadFirst();

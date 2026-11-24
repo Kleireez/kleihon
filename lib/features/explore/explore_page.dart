@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/routes.dart';
+import '../../core/utils/app_logger.dart';
 import '../../domain/entities/source_capability.dart';
 import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/comic_providers.dart';
+import '../../shared/providers/search_history_providers.dart';
 import '../../shared/widgets/comic_grid_tile.dart';
 import '../local_import/local_import_flow.dart';
 import 'explore_controller.dart';
@@ -21,16 +25,79 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
+  /// Kolom pencarian dan daftar saran satu kelompok ketukan: mengetuk saran
+  /// tidak dianggap mengetuk di luar kolom (yang akan menutup fokus).
+  final Object _regionGroup = Object();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocus.addListener(_onFocusChanged);
+  }
+
   @override
   void dispose() {
+    _searchFocus
+      ..removeListener(_onFocusChanged)
+      ..dispose();
     _search.dispose();
-    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _import() {
     _searchFocus.unfocus();
     importLocalComic(context, ref);
+  }
+
+  /// Menyimpan kata kunci ke riwayat. Kegagalan tidak mengganggu pencarian.
+  Future<void> _remember(String query) async {
+    try {
+      await ref.read(searchHistoryRepositoryProvider).add(query);
+    } catch (e, s) {
+      appLogger.w('Gagal menyimpan riwayat pencarian', error: e, stackTrace: s);
+    }
+  }
+
+  Future<void> _forget(String query) async {
+    try {
+      await ref.read(searchHistoryRepositoryProvider).remove(query);
+    } catch (e, s) {
+      appLogger.w('Gagal menghapus riwayat pencarian', error: e, stackTrace: s);
+    }
+  }
+
+  Future<void> _forgetAll() async {
+    try {
+      await ref.read(searchHistoryRepositoryProvider).clearAll();
+    } catch (e, s) {
+      appLogger.w(
+        'Gagal membersihkan riwayat pencarian',
+        error: e,
+        stackTrace: s,
+      );
+    }
+  }
+
+  /// Tombol cari di keyboard: cari seketika dan simpan ke riwayat.
+  void _submit(String value) {
+    ref.read(exploreControllerProvider.notifier).searchNow(value);
+    final query = value.trim();
+    if (query.isNotEmpty) unawaited(_remember(query));
+    _searchFocus.unfocus();
+  }
+
+  /// Memilih saran: isi kolom, cari, dan pindahkan ke paling atas riwayat.
+  void _pick(String query) {
+    _search.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    setState(() {});
+    _submit(query);
   }
 
   @override
@@ -41,6 +108,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     final canSearch = ref
         .watch(comicRepositoryProvider)
         .supports(sourceId, SourceCapability.search);
+    final recent = ref.watch(recentSearchesProvider).value ?? const <String>[];
+
+    // Saran hanya muncul saat kolom difokuskan dan masih kosong.
+    final showRecent =
+        canSearch &&
+        _searchFocus.hasFocus &&
+        _search.text.isEmpty &&
+        recent.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,8 +135,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                   child: TextField(
                     controller: _search,
                     focusNode: _searchFocus,
+                    groupId: _regionGroup,
                     onTapOutside: (_) => _searchFocus.unfocus(),
-                    onSubmitted: (_) => _searchFocus.unfocus(),
+                    onSubmitted: _submit,
                     textInputAction: TextInputAction.search,
                     onChanged: (value) {
                       setState(() {});
@@ -91,7 +167,17 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               )
             : null,
       ),
-      body: _buildBody(context, state, controller),
+      body: showRecent
+          ? TapRegion(
+              groupId: _regionGroup,
+              child: _RecentSearches(
+                items: recent,
+                onPick: _pick,
+                onRemove: _forget,
+                onClear: _forgetAll,
+              ),
+            )
+          : _buildBody(context, state, controller),
     );
   }
 
@@ -153,6 +239,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     comic: comic,
                     onTap: () {
                       _searchFocus.unfocus();
+                      // Membuka hasil pencarian berarti pencarian itu berguna.
+                      if (state.query.isNotEmpty) {
+                        unawaited(_remember(state.query));
+                      }
                       context.push(
                         AppRoutes.comic(comic.sourceId, comic.remoteId),
                       );
@@ -167,6 +257,58 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RecentSearches extends StatelessWidget {
+  const _RecentSearches({
+    required this.items,
+    required this.onPick,
+    required this.onRemove,
+    required this.onClear,
+  });
+
+  final List<String> items;
+  final void Function(String query) onPick;
+  final void Function(String query) onRemove;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Pencarian terakhir',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: onClear, child: const Text('Hapus semua')),
+            ],
+          ),
+        ),
+        for (final item in items)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.history),
+            title: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: IconButton(
+              tooltip: 'Hapus dari riwayat pencarian',
+              icon: const Icon(Icons.close),
+              onPressed: () => onRemove(item),
+            ),
+            onTap: () => onPick(item),
+          ),
+      ],
     );
   }
 }
