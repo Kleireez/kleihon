@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart'
-    show InsertMode, Value, innerJoin, leftOuterJoin;
+    show InsertMode, SimpleSelectStatement, Value, innerJoin, leftOuterJoin;
 
 import '../../domain/entities/bookmark.dart';
 import '../../domain/entities/entity_id.dart';
@@ -134,7 +134,10 @@ class BookmarkRepositoryImpl implements BookmarkRepository {
     });
   }
 
-  dynamic _bookmarkQuery(String sourceId, String comicRemoteId) {
+  SimpleSelectStatement<db.$BookmarksTable, db.Bookmark> _bookmarkQuery(
+    String sourceId,
+    String comicRemoteId,
+  ) {
     final comicId = makeEntityId(sourceId, comicRemoteId);
     return _db.select(_db.bookmarks)..where((t) => t.comicId.equals(comicId));
   }

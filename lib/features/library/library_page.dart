@@ -63,6 +63,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
   Future<void> _remove(LibraryEntry entry) async {
     final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
     final repository = ref.read(bookmarkRepositoryProvider);
     final previous = entry.bookmark;
 
@@ -164,20 +165,24 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ),
           SizedBox(
             height: 48,
-            child: ListView(
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                for (final category in LibraryCategory.values)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: ChoiceChip(
-                      label: Text('${category.label} ${counts[category] ?? 0}'),
-                      selected: view.category == category,
-                      onSelected: (_) => controller.setCategory(category),
+              child: Row(
+                children: [
+                  for (final category in LibraryCategory.values)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(
+                          '${category.label} ${counts[category] ?? 0}',
+                        ),
+                        selected: view.category == category,
+                        onSelected: (_) => controller.setCategory(category),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           Expanded(

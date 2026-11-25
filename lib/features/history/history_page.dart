@@ -19,6 +19,7 @@ class HistoryPage extends ConsumerWidget {
     HistoryEntry entry,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
     final repository = ref.read(historyRepositoryProvider);
 
     final HistoryRestorePoint? point;

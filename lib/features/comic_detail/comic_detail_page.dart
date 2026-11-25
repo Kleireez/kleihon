@@ -61,6 +61,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   Future<void> _toggleBookmark(Bookmark? current) async {
     final messenger = ScaffoldMessenger.of(context);
     final repository = ref.read(bookmarkRepositoryProvider);
+    messenger.clearSnackBars();
 
     try {
       if (current == null) {

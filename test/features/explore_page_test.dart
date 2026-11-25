@@ -8,7 +8,6 @@ import 'package:kleihon/domain/entities/source_results.dart';
 import 'package:kleihon/features/explore/explore_page.dart';
 import 'package:material_ui/material_ui.dart';
 
-
 import '../helpers/fake_search_history_repository.dart';
 import '../helpers/fake_comic_source.dart';
 import '../helpers/test_app.dart';
