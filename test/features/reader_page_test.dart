@@ -10,6 +10,7 @@ import 'package:kleihon/features/reader/reader_page_image.dart';
 import 'package:kleihon/features/reader/reader_settings.dart';
 import 'package:kleihon/domain/entities/bookmark.dart';
 import 'package:kleihon/domain/entities/reading_status.dart';
+import 'package:kleihon/app/theme/app_theme.dart';
 
 import '../helpers/fake_reader_services.dart';
 import '../helpers/fake_comic_source.dart';
@@ -814,5 +815,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(await statusOf(bookmarks), ReadingStatus.completed);
+  });
+  testWidgets('bilah reader tetap gelap walau tema aplikasi terang', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      testApp(
+        source: source(),
+        router: readerRouter('c2'),
+        theme: AppTheme.light,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final barContext = tester.element(find.text('Judul k1'));
+    expect(Theme.of(barContext).brightness, Brightness.dark);
   });
 }

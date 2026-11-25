@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/theme/app_theme.dart';
 import '../../domain/usecases/bookmark_usecases.dart';
 import '../../shared/providers/bookmark_providers.dart';
 import '../../app/routes.dart';
@@ -739,7 +740,11 @@ class _SlidingBar extends StatelessWidget {
         ),
       ),
       child: visible
-          ? KeyedSubtree(key: const ValueKey('shown'), child: child)
+          ? KeyedSubtree(
+              key: const ValueKey('shown'),
+              // Bilah reader selalu gelap, apa pun tema aplikasinya.
+              child: Theme(data: AppTheme.dark, child: child),
+            )
           : const SizedBox.shrink(key: ValueKey('hidden')),
     );
   }

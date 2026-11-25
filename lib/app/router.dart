@@ -2,14 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../features/history/history_page.dart';
-import '../features/library/library_page.dart';
 import '../features/comic_detail/comic_detail_page.dart';
 import '../features/comic_detail/cover_picker_page.dart';
 import '../features/explore/explore_page.dart';
+import '../features/history/history_page.dart';
 import '../features/home/home_page.dart';
+import '../features/library/library_page.dart';
 import '../features/reader/reader_page.dart';
-import '../shared/widgets/placeholder_page.dart';
+import '../features/settings/settings_page.dart';
 import 'routes.dart';
 import 'shell/main_shell.dart';
 
@@ -60,10 +60,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.settings,
-                builder: (c, s) => const PlaceholderPage(
-                  title: 'Settings',
-                  note: 'Tema, reader, cache (Phase 1-7).',
-                ),
+                builder: (c, s) => const SettingsPage(),
               ),
             ],
           ),
