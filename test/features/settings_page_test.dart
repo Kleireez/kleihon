@@ -76,6 +76,26 @@ void main() {
     expect(store.saved.last.themeMode, AppThemeMode.system);
   });
 
+  testWidgets('mengganti palet warna menerapkan dan menyimpan pilihan', (
+    tester,
+  ) async {
+    final store = InMemoryAppSettingsStore();
+    await pumpSettings(tester, appSettingsStore: store);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+    expect(container.read(appSettingsProvider).palette, AppColorPalette.brass);
+
+    await tester.tap(find.text('Seoul Periwinkle'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(appSettingsProvider).palette,
+      AppColorPalette.periwinkle,
+    );
+    expect(store.saved.last.palette, AppColorPalette.periwinkle);
+  });
+
   testWidgets('pengaturan reader bisa diubah dari Settings', (tester) async {
     final readerStore = InMemoryReaderSettingsStore();
     await pumpSettings(tester, readerStore: readerStore);

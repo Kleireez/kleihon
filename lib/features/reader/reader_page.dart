@@ -766,47 +766,84 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Material(
-      color: Colors.black.withValues(alpha: 0.8),
+      color: const Color(0xEC111318),
+      shape: const Border(
+        bottom: BorderSide(color: Color(0x24D6AF66)),
+      ),
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: kToolbarHeight,
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Kembali',
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comicTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    Text(
-                      chapterTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+          height: kToolbarHeight + 4,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Kembali',
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Pengaturan reader',
-                onPressed: onSettings,
-                icon: const Icon(Icons.tune),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        comicTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              chapterTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0x24D6AF66)),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Pengaturan reader',
+                    onPressed: onSettings,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -842,39 +879,69 @@ class _BottomBar extends StatelessWidget {
     // Slider hanya berguna jika ada lebih dari satu halaman.
     final enabled = pageCount > 1;
     final max = enabled ? (pageCount - 1).toDouble() : 1.0;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Material(
-      color: Colors.black.withValues(alpha: 0.8),
+      color: const Color(0xEC111318),
+      shape: const Border(
+        top: BorderSide(color: Color(0x24D6AF66)),
+      ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 56,
-          child: Row(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                tooltip: 'Chapter sebelumnya',
-                onPressed: onPrevious,
-                icon: const Icon(Icons.skip_previous),
-              ),
-              Text(label, style: Theme.of(context).textTheme.titleSmall),
-              Expanded(
-                child: Directionality(
-                  textDirection: reverseSlider
-                      ? TextDirection.rtl
-                      : TextDirection.ltr,
-                  child: Slider(
-                    value: enabled ? sliderValue : 0,
-                    min: 0,
-                    max: max,
-                    onChanged: enabled ? onSeek : null,
-                    onChangeEnd: enabled ? (_) => onSeekEnd() : null,
-                  ),
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Chapter sebelumnya',
+                      onPressed: onPrevious,
+                      icon: const Icon(Icons.skip_previous_rounded),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0x24D6AF66)),
+                      ),
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Directionality(
+                        textDirection: reverseSlider
+                            ? TextDirection.rtl
+                            : TextDirection.ltr,
+                        child: Slider(
+                          value: enabled ? sliderValue : 0,
+                          min: 0,
+                          max: max,
+                          onChanged: enabled ? onSeek : null,
+                          onChangeEnd: enabled ? (_) => onSeekEnd() : null,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Chapter berikutnya',
+                      onPressed: onNext,
+                      icon: const Icon(Icons.skip_next_rounded),
+                    ),
+                  ],
                 ),
-              ),
-              IconButton(
-                tooltip: 'Chapter berikutnya',
-                onPressed: onNext,
-                icon: const Icon(Icons.skip_next),
               ),
             ],
           ),
@@ -898,31 +965,106 @@ class _EndOfChapter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nextChapter = next;
-    // Warna teks mengikuti latar reader (diatur lewat DefaultTextStyle).
-    final textColor = DefaultTextStyle.of(context).style.color;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 120),
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 120),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Akhir chapter',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: textColor),
+          Row(
+            children: [
+              Expanded(child: Divider(color: AppTheme.hairlineOf(context))),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.hairlineOf(context)),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: scheme.primary,
+                ),
+              ),
+              Expanded(child: Divider(color: AppTheme.hairlineOf(context))),
+            ],
           ),
-          const SizedBox(height: 16),
-          if (nextChapter != null)
-            FilledButton(
-              onPressed: onNext,
-              child: Text('Lanjut: ${nextChapter.title}'),
-            )
-          else
-            const Text('Chapter terakhir.'),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: onBack,
-            child: const Text('Kembali ke daftar chapter'),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.hairlineOf(context)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.hairlineOf(context)),
+                  ),
+                  child: Icon(
+                    Icons.library_add_check_outlined,
+                    size: 26,
+                    color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Akhir chapter',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (nextChapter == null)
+                  Text(
+                    'Chapter terakhir.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  Text(
+                    'Siap melanjutkan ke chapter berikutnya.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                if (nextChapter != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onNext,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      label: Text('Lanjut: ${nextChapter.title}'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.list_alt_rounded, size: 18),
+                    label: const Text('Kembali ke daftar chapter'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

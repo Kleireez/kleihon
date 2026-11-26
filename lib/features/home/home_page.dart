@@ -3,11 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/routes.dart';
+import '../../app/theme/app_theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/comic.dart';
+import '../../domain/entities/history.dart';
 import '../../domain/entities/source_capability.dart';
 import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/comic_providers.dart';
+import '../../shared/providers/history_providers.dart';
+import '../../shared/widgets/comic_cover.dart';
 import '../../shared/widgets/comic_grid_tile.dart';
 import '../local_import/local_import_flow.dart';
 import 'home_providers.dart';
@@ -20,24 +24,56 @@ class HomePage extends ConsumerWidget {
     final sourceId = ref.watch(activeSourceIdProvider);
     final repository = ref.watch(comicRepositoryProvider);
     final latest = ref.watch(homeLatestProvider);
+    final history = ref.watch(historyEntriesProvider).value;
+    final lastRead = (history != null && history.isNotEmpty)
+        ? history.first
+        : null;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'KleiHon',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5),
+        titleSpacing: 16,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.hairlineOf(context)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Image.asset(
+                  'assets/images/logo_light.jpg',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'KleiHon',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
             tooltip: 'Impor CBZ',
             onPressed: () => importLocalComic(context, ref),
-            icon: const Icon(Icons.upload_file),
+            icon: const Icon(Icons.upload_file_outlined),
           ),
           IconButton(
             tooltip: 'Cari',
             onPressed: () => context.go(AppRoutes.explore),
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: RefreshIndicator(
@@ -47,22 +83,109 @@ class HomePage extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      sourceId == 'local'
+                          ? 'ARSIP MANDIRI AKTIF'
+                          : 'SUMBER: ${sourceId.toUpperCase()}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        letterSpacing: 1.0,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => importLocalComic(context, ref),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.hairlineOf(context)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.upload_file_outlined,
+                            size: 15,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Impor CBZ',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (lastRead != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: _ContinueReadingCard(
+                  entry: lastRead,
+                  onOpenComic: () => context.push(
+                    AppRoutes.comic(
+                      lastRead.comic.sourceId,
+                      lastRead.comic.remoteId,
+                    ),
+                  ),
+                  onContinue: () {
+                    final target = lastRead.chapterTitle != null
+                        ? AppRoutes.reader(
+                            lastRead.comic.sourceId,
+                            lastRead.comic.remoteId,
+                            lastRead.chapterRemoteId,
+                          )
+                        : AppRoutes.comic(
+                            lastRead.comic.sourceId,
+                            lastRead.comic.remoteId,
+                          );
+                    context.push(target);
+                  },
+                ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
                   Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => context.go(AppRoutes.explore),
-                      icon: const Icon(Icons.search),
-                      label: const Text('Cari komik'),
+                    child: _QuickActionCard(
+                      icon: Icons.search_rounded,
+                      label: 'Cari komik',
+                      onTap: () => context.go(AppRoutes.explore),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => context.go(AppRoutes.library),
-                      icon: const Icon(Icons.collections_bookmark_outlined),
-                      label: const Text('Library'),
+                    child: _QuickActionCard(
+                      icon: Icons.collections_bookmark_outlined,
+                      label: 'Library',
+                      onTap: () => context.go(AppRoutes.library),
                     ),
                   ),
                 ],
@@ -92,6 +215,199 @@ class HomePage extends ConsumerWidget {
   }
 }
 
+class _ContinueReadingCard extends StatelessWidget {
+  const _ContinueReadingCard({
+    required this.entry,
+    required this.onOpenComic,
+    required this.onContinue,
+  });
+
+  final HistoryEntry entry;
+  final VoidCallback onOpenComic;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasPages = entry.pageCount > 0;
+    final progress = hasPages
+        ? ((entry.pageIndex + 1) / entry.pageCount).clamp(0.0, 1.0)
+        : 0.0;
+    final percent = (progress * 100).round();
+    final chapterText = entry.chapterTitle ?? 'Chapter terakhir';
+    final metaText = hasPages
+        ? '$chapterText • Hal ${entry.pageIndex + 1} / ${entry.pageCount}'
+        : chapterText;
+
+    return Material(
+      color: scheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppTheme.hairlineOf(context)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpenComic,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 80,
+                height: 120,
+                child: ComicCover(url: entry.comic.coverUrl, borderRadius: 10),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: scheme.secondary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'TERAKHIR DIBACA',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 10,
+                            letterSpacing: 1.0,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      entry.comic.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      metaText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (hasPages) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 4,
+                          backgroundColor: scheme.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            hasPages
+                                ? (entry.isCompleted
+                                      ? 'Selesai'
+                                      : '$percent% Selesai')
+                                : 'Siap dilanjutkan',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: onContinue,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 17),
+                          label: const Text('Lanjut'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.hairlineOf(context)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 19, color: scheme.primary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, this.onSeeAll});
 
@@ -100,12 +416,23 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 8, 8),
+      padding: const EdgeInsets.fromLTRB(16, 22, 12, 10),
       child: Row(
         children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
-            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+            child: Text(title, style: theme.textTheme.titleMedium),
           ),
           if (onSeeAll != null)
             TextButton(onPressed: onSeeAll, child: const Text('Lihat semua')),
@@ -132,10 +459,11 @@ class _LatestSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return value.when(
       loading: () => const SizedBox(
-        height: 210,
+        height: 216,
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (error, stack) => _InlineMessage(
+      error: (error, stack) => _InlineCardMessage(
+        icon: Icons.error_outline_rounded,
         text: error is AppException
             ? error.userMessage
             : 'Gagal memuat daftar komik.',
@@ -144,17 +472,21 @@ class _LatestSection extends StatelessWidget {
       ),
       data: (items) {
         if (items == null) {
-          return const _InlineMessage(text: 'Tidak tersedia di sumber ini.');
+          return const _InlineCardMessage(
+            icon: Icons.cloud_off_outlined,
+            text: 'Tidak tersedia di sumber ini.',
+          );
         }
         if (items.isEmpty) {
-          return _InlineMessage(
+          return _InlineCardMessage(
+            icon: Icons.auto_stories_outlined,
             text: 'Belum ada komik.',
             actionLabel: 'Impor komik',
             onAction: onImport,
           );
         }
         return SizedBox(
-          height: 210,
+          height: 216,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -163,7 +495,7 @@ class _LatestSection extends StatelessWidget {
             itemBuilder: (context, index) {
               final comic = items[index];
               return SizedBox(
-                width: 112,
+                width: 116,
                 child: ComicGridTile(comic: comic, onTap: () => onOpen(comic)),
               );
             },
@@ -185,32 +517,65 @@ class _UnavailableSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionHeader(title: title),
-        const _InlineMessage(text: 'Tidak tersedia di sumber ini.'),
+        const _InlineCardMessage(
+          icon: Icons.cloud_off_outlined,
+          text: 'Tidak tersedia di sumber ini.',
+        ),
       ],
     );
   }
 }
 
-class _InlineMessage extends StatelessWidget {
-  const _InlineMessage({required this.text, this.actionLabel, this.onAction});
+class _InlineCardMessage extends StatelessWidget {
+  const _InlineCardMessage({
+    required this.icon,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+  });
 
+  final IconData icon;
   final String text;
   final String? actionLabel;
   final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(text, style: TextStyle(color: muted)),
-          ),
-          if (actionLabel != null)
-            TextButton(onPressed: onAction, child: Text(actionLabel!)),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.hairlineOf(context)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (actionLabel != null)
+              TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
+        ),
       ),
     );
   }

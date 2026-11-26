@@ -60,8 +60,8 @@ Future<void> pumpLibrary(
   await tester.pumpAndSettle();
 }
 
-double top(WidgetTester tester, String text) =>
-    tester.getTopLeft(find.text(text)).dy;
+double left(WidgetTester tester, String text) =>
+    tester.getTopLeft(find.text(text)).dx;
 
 void main() {
   testWidgets('menampilkan komik, status, dan chapter terakhir dibaca', (
@@ -79,9 +79,10 @@ void main() {
     await pumpLibrary(tester, repo);
 
     expect(find.text('Alpha'), findsOneWidget);
-    expect(find.text('Sedang dibaca • Terakhir: Chapter 14'), findsOneWidget);
+    expect(find.text('Sedang dibaca'), findsOneWidget);
+    expect(find.text('Terakhir: Chapter 14'), findsOneWidget);
     expect(find.text('Beta'), findsOneWidget);
-    expect(find.text('Belum dibaca'), findsOneWidget);
+    expect(find.text('Belum dibaca'), findsNWidgets(2));
   });
 
   testWidgets('urutan bawaan: yang terakhir dibaca di atas', (tester) async {
@@ -90,7 +91,7 @@ void main() {
     seedEntry(repo, 'Beta', readAt: DateTime(2026, 11, 10));
     await pumpLibrary(tester, repo);
 
-    expect(top(tester, 'Beta'), lessThan(top(tester, 'Alpha')));
+    expect(left(tester, 'Beta'), lessThan(left(tester, 'Alpha')));
   });
 
   testWidgets('menu urutan mengubah ke judul A-Z', (tester) async {
@@ -104,7 +105,7 @@ void main() {
     await tester.tap(find.text('Judul A-Z'));
     await tester.pumpAndSettle();
 
-    expect(top(tester, 'Alpha'), lessThan(top(tester, 'Beta')));
+    expect(left(tester, 'Alpha'), lessThan(left(tester, 'Beta')));
   });
 
   testWidgets('kategori menampilkan jumlah dan menyaring daftar', (
@@ -175,7 +176,7 @@ void main() {
       comicRemoteId: 'alpha',
     );
     expect(bookmark?.status, ReadingStatus.completed);
-    expect(find.text('Selesai'), findsOneWidget);
+    expect(find.text('Selesai'), findsNWidgets(2));
   });
 
   testWidgets('hapus dari Library bisa diurungkan', (tester) async {

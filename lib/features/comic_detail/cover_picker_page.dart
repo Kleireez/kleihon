@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/theme/app_theme.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/local_providers.dart';
 import '../../domain/entities/chapter.dart';
@@ -83,20 +84,30 @@ class _CoverPickerPageState extends ConsumerState<CoverPickerPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: chapterId,
-                  items: [
-                    for (final chapter in data.chapters)
-                      DropdownMenuItem(
-                        value: chapter.remoteId,
-                        child: Text(
-                          chapter.title,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() => _chapterId = value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.hairlineOf(context)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: chapterId,
+                      items: [
+                        for (final chapter in data.chapters)
+                          DropdownMenuItem(
+                            value: chapter.remoteId,
+                            child: Text(
+                              chapter.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _chapterId = value),
+                    ),
+                  ),
                 ),
               ),
               Padding(

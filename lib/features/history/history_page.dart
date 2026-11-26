@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/routes.dart';
+import '../../app/theme/app_theme.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/format_date.dart';
 import '../../domain/entities/history.dart';
@@ -90,7 +91,7 @@ class HistoryPage extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
     try {
       await ref.read(historyRepositoryProvider).clearAll();
       messenger.showSnackBar(
@@ -108,11 +109,27 @@ class HistoryPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final entries = ref.watch(historyEntriesProvider);
     final now = ref.watch(historyClockProvider)();
-    final hasEntries = (entries.value ?? const <HistoryEntry>[]).isNotEmpty;
+    final allEntries = entries.value ?? const <HistoryEntry>[];
+    final hasEntries = allEntries.isNotEmpty;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('History'),
+        titleSpacing: 16,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('History', style: theme.textTheme.headlineSmall),
+            if (hasEntries)
+              Text(
+                '${allEntries.length} komik dalam riwayat',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
         actions: [
           if (hasEntries)
             IconButton(
@@ -120,6 +137,7 @@ class HistoryPage extends ConsumerWidget {
               icon: const Icon(Icons.delete_sweep_outlined),
               onPressed: () => _clearAll(context, ref),
             ),
+          const SizedBox(width: 4),
         ],
       ),
       body: entries.when(
@@ -134,11 +152,27 @@ class HistoryPage extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.history, size: 48),
-                    const SizedBox(height: 12),
-                    const Text(
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.hairlineOf(context)),
+                      ),
+                      child: Icon(
+                        Icons.history,
+                        size: 32,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
                       'Belum ada riwayat baca.',
                       textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
@@ -152,29 +186,58 @@ class HistoryPage extends ConsumerWidget {
           }
 
           // Satu daftar datar berisi label hari dan baris riwayat.
+          final groups = groupHistoryByDay(list, now);
           final rows = <Object>[];
-          for (final group in groupHistoryByDay(list, now)) {
-            rows.add(group.label);
+          for (final group in groups) {
+            rows.add(group);
             rows.addAll(group.entries);
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 24),
-            itemCount: rows.length,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+            itemCount: rows.length + 1,
             itemBuilder: (context, index) {
-              final row = rows[index];
-              if (row is String) return _DayHeader(label: row);
-              final entry = row as HistoryEntry;
-              return _HistoryTile(
-                entry: entry,
-                onOpen: () => context.push(
-                  AppRoutes.reader(
-                    entry.comic.sourceId,
-                    entry.comic.remoteId,
-                    entry.chapterRemoteId,
+              if (index == rows.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Arsip membaca terjaga',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
                   ),
+                );
+              }
+              final row = rows[index];
+              if (row is HistoryGroup) {
+                return _DayHeader(
+                  label: row.label,
+                  count: row.entries.length,
+                );
+              }
+              final entry = row as HistoryEntry;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _HistoryCard(
+                  entry: entry,
+                  onOpen: () => context.push(
+                    AppRoutes.reader(
+                      entry.comic.sourceId,
+                      entry.comic.remoteId,
+                      entry.chapterRemoteId,
+                    ),
+                  ),
+                  onRemove: () => _remove(context, ref, entry),
                 ),
-                onRemove: () => _remove(context, ref, entry),
               );
             },
           );
@@ -185,27 +248,51 @@ class HistoryPage extends ConsumerWidget {
 }
 
 class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.label});
+  const _DayHeader({required this.label, required this.count});
 
   final String label;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        label,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      padding: const EdgeInsets.fromLTRB(2, 14, 2, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontSize: 13,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Text(
+            '$count entri',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({
     required this.entry,
     required this.onOpen,
     required this.onRemove,
@@ -217,31 +304,103 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      isThreeLine: true,
-      leading: SizedBox(
-        width: 48,
-        height: 68,
-        child: ComicCover(url: entry.comic.coverUrl, borderRadius: 4),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final completed = entry.isCompleted;
+
+    return Material(
+      color: scheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppTheme.hairlineOf(context)),
       ),
-      title: Text(
-        entry.comic.title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 52,
+                height: 76,
+                child: ComicCover(url: entry.comic.coverUrl, borderRadius: 8),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: completed
+                                ? scheme.secondaryContainer.withValues(
+                                    alpha: 0.45,
+                                  )
+                                : scheme.primaryContainer.withValues(
+                                    alpha: 0.16,
+                                  ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            completed ? 'Tamat' : 'Dibaca',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: completed
+                                  ? scheme.secondary
+                                  : scheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          formatTimeOfDay(entry.readAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      entry.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      historySubtitle(entry),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Opsi riwayat',
+                onSelected: (_) => onRemove(),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'remove',
+                    child: Text('Hapus dari riwayat'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      subtitle: Text(
-        '${historySubtitle(entry)}\n${formatTimeOfDay(entry.readAt)}',
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: PopupMenuButton<String>(
-        tooltip: 'Opsi riwayat',
-        onSelected: (_) => onRemove(),
-        itemBuilder: (context) => const [
-          PopupMenuItem(value: 'remove', child: Text('Hapus dari riwayat')),
-        ],
-      ),
-      onTap: onOpen,
     );
   }
 }

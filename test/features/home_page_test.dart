@@ -3,11 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:kleihon/app/routes.dart';
 import 'package:kleihon/core/errors/app_exception.dart';
 import 'package:kleihon/domain/entities/comic.dart';
+import 'package:kleihon/domain/entities/history.dart';
 import 'package:kleihon/domain/entities/source_capability.dart';
 import 'package:kleihon/domain/entities/source_results.dart';
 import 'package:kleihon/features/home/home_page.dart';
 
 import '../helpers/fake_comic_source.dart';
+import '../helpers/fake_history_repository.dart';
 import '../helpers/test_app.dart';
 
 PagedResult<Comic> comics(List<String> ids, int page) => PagedResult(
@@ -26,6 +28,12 @@ GoRouter homeRouter() => GoRouter(
       path: AppRoutes.comicPattern,
       builder: (c, s) => marker(
         'DETAIL ${s.pathParameters['sourceId']}/${s.pathParameters['comicId']}',
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.readerPattern,
+      builder: (c, s) => marker(
+        'READER ${s.pathParameters['sourceId']}/${s.pathParameters['comicId']}/${s.pathParameters['chapterId']}',
       ),
     ),
   ],
@@ -144,5 +152,40 @@ void main() {
     await tester.tap(find.text('Judul a'));
     await tester.pumpAndSettle();
     expect(find.text('DETAIL local/a'), findsOneWidget);
+  });
+
+  testWidgets('menampilkan kartu terakhir dibaca dan tombol Lanjut', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final history = FakeHistoryRepository()
+      ..seed(
+        HistoryEntry(
+          comic: testComic('local', 'v1', 'Vagabond'),
+          chapterRemoteId: 'ch142',
+          chapterTitle: 'Ch. 142',
+          pageIndex: 17,
+          pageCount: 32,
+          readAt: DateTime(2026, 11, 20),
+        ),
+      );
+    final source = FakeComicSource(
+      'local',
+      capabilities: {SourceCapability.latest},
+      onLatest: (page) async => comics(['a'], page),
+    );
+
+    await tester.pumpWidget(
+      testApp(source: source, router: homeRouter(), history: history),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TERAKHIR DIBACA'), findsOneWidget);
+    expect(find.text('Vagabond'), findsOneWidget);
+    expect(find.text('Ch. 142 • Hal 18 / 32'), findsOneWidget);
+
+    await tester.tap(find.text('Lanjut'));
+    await tester.pumpAndSettle();
+    expect(find.text('READER local/v1/ch142'), findsOneWidget);
   });
 }

@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/theme/app_theme.dart';
+
 /// Sampul komik. Mendukung URI file:// (sumber lokal) dan http(s).
 class ComicCover extends StatelessWidget {
-  const ComicCover({super.key, required this.url, this.borderRadius = 8});
+  const ComicCover({super.key, required this.url, this.borderRadius = 10});
 
   final String? url;
   final double borderRadius;
@@ -15,13 +17,13 @@ class ComicCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final placeholder = ColoredBox(
-      color: scheme.surfaceContainerHighest,
+      color: scheme.surfaceContainerHigh,
       child: Center(
         child: Icon(Icons.auto_stories_rounded, color: scheme.onSurfaceVariant),
       ),
     );
     final broken = ColoredBox(
-      color: scheme.surfaceContainerHighest,
+      color: scheme.surfaceContainerHigh,
       child: Center(
         child: Icon(
           Icons.broken_image_outlined,
@@ -56,9 +58,15 @@ class ComicCover extends StatelessWidget {
       image = placeholder;
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: image,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: AppTheme.hairlineOf(context)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: image,
+      ),
     );
   }
 }

@@ -11,19 +11,23 @@ class ComicGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: ComicCover(url: comic.coverUrl)),
-          const SizedBox(height: 6),
+          Expanded(child: ComicCover(url: comic.coverUrl, borderRadius: 10)),
+          const SizedBox(height: 8),
           Text(
             comic.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: textTheme.labelLarge?.copyWith(
+              fontSize: 13,
+              height: 1.25,
+            ),
           ),
         ],
       ),

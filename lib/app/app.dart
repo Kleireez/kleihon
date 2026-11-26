@@ -6,6 +6,7 @@ import '../features/settings/app_settings_labels.dart';
 import '../features/settings/app_settings_providers.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
+import 'widgets/splash_overlay.dart';
 
 class KleiHonApp extends ConsumerWidget {
   const KleiHonApp({super.key});
@@ -20,10 +21,12 @@ class KleiHonApp extends ConsumerWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'KleiHon',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      theme: AppTheme.lightFor(settings.palette),
+      darkTheme: AppTheme.darkFor(settings.palette),
       themeMode: settings.themeMode.themeMode,
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) =>
+          SplashOverlay(child: child ?? const SizedBox.shrink()),
     );
   }
 }

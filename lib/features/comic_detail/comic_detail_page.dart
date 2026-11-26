@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/routes.dart';
+import '../../app/theme/app_theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/app_logger.dart';
 import '../../data/local/local_library_layout.dart';
@@ -343,41 +344,52 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               ),
             )
           else
-            SliverList.separated(
-              itemCount: chapters.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final chapter = chapters[index];
-                final entry = progress[chapter.remoteId];
-                final subtitle = chapterSubtitle(
-                  published: chapter.publishedAt,
-                  progress: entry,
-                );
-                return ListTile(
-                  title: Text(
-                    chapter.title,
-                    style: entry?.isCompleted == true
-                        ? TextStyle(color: muted)
-                        : null,
-                  ),
-                  subtitle: subtitle == null ? null : Text(subtitle),
-                  trailing: _isLocal
-                      ? PopupMenuButton<String>(
-                          tooltip: 'Opsi chapter',
-                          onSelected: (_) => _deleteChapter(chapter),
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Hapus chapter'),
-                            ),
-                          ],
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: () => _open(chapter),
-                );
-              },
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              sliver: SliverList.separated(
+                itemCount: chapters.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final chapter = chapters[index];
+                  final entry = progress[chapter.remoteId];
+                  final subtitle = chapterSubtitle(
+                    published: chapter.publishedAt,
+                    progress: entry,
+                  );
+                  final scheme = Theme.of(context).colorScheme;
+                  return Material(
+                    color: scheme.surfaceContainer,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppTheme.hairlineOf(context)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                      title: Text(
+                        chapter.title,
+                        style: entry?.isCompleted == true
+                            ? TextStyle(color: muted)
+                            : null,
+                      ),
+                      subtitle: subtitle == null ? null : Text(subtitle),
+                      trailing: _isLocal
+                          ? PopupMenuButton<String>(
+                              tooltip: 'Opsi chapter',
+                              onSelected: (_) => _deleteChapter(chapter),
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Hapus chapter'),
+                                ),
+                              ],
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: () => _open(chapter),
+                    ),
+                  );
+                },
+              ),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
     );
@@ -461,7 +473,8 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant;
 
     String? clean(String? value) {
       final trimmed = value?.trim();
@@ -482,49 +495,57 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 110,
-                height: 165,
-                child: ComicCover(url: comic.coverUrl),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(comic.title, style: theme.textTheme.titleLarge),
-                    if (comic.alternativeTitles.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        comic.alternativeTitles.join(' / '),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    for (final (label, value) in meta)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '$label: ',
-                                style: TextStyle(color: muted),
-                              ),
-                              TextSpan(text: value),
-                            ],
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.hairlineOf(context)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 108,
+                  height: 162,
+                  child: ComicCover(url: comic.coverUrl, borderRadius: 10),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(comic.title, style: theme.textTheme.titleLarge),
+                      if (comic.alternativeTitles.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          comic.alternativeTitles.join(' / '),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
                           ),
                         ),
-                      ),
-                  ],
+                      ],
+                      const SizedBox(height: 8),
+                      for (final (label, value) in meta)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '$label: ',
+                                  style: TextStyle(color: muted),
+                                ),
+                                TextSpan(text: value),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           if (comic.genres.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -565,20 +586,40 @@ class _SynopsisState extends State<_Synopsis> {
   @override
   Widget build(BuildContext context) {
     final long = widget.text.length > 160;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.text,
-          maxLines: _expanded ? null : 4,
-          overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-        ),
-        if (long)
-          TextButton(
-            onPressed: () => setState(() => _expanded = !_expanded),
-            child: Text(_expanded ? 'Sembunyikan' : 'Selengkapnya'),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.hairlineOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Sinopsis', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Text(
+            widget.text,
+            maxLines: _expanded ? null : 4,
+            overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
-      ],
+          if (long)
+            TextButton(
+              onPressed: () => setState(() => _expanded = !_expanded),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+              ),
+              child: Text(_expanded ? 'Sembunyikan' : 'Selengkapnya'),
+            ),
+        ],
+      ),
     );
   }
 }
