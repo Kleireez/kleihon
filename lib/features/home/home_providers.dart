@@ -26,3 +26,19 @@ final homeLatestProvider = FutureProvider.autoDispose<List<Comic>?>((
   );
   return result.items.take(homeSectionLimit).toList();
 });
+
+/// Komik populer untuk Home. Bernilai null jika sumber aktif tidak mendukung.
+final homePopularProvider = FutureProvider.autoDispose<List<Comic>?>((
+  ref,
+) async {
+  final sourceId = ref.watch(activeSourceIdProvider);
+  final repository = ref.watch(comicRepositoryProvider);
+
+  if (!repository.supports(sourceId, SourceCapability.popular)) return null;
+
+  final result = await ref.watch(getPopularComicsProvider)(
+    sourceId: sourceId,
+    page: 1,
+  );
+  return result.items.take(homeSectionLimit).toList();
+});

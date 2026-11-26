@@ -1,3 +1,5 @@
+import '../../data/local/local_library_layout.dart';
+
 enum AppThemeMode { dark, light, system }
 
 enum AppColorPalette { brass, periwinkle, crimson, jade }
@@ -14,32 +16,41 @@ class AppSettings {
   const AppSettings({
     this.themeMode = AppThemeMode.dark,
     this.palette = AppColorPalette.brass,
+    this.activeSourceId = localSourceId,
   });
 
   static const AppSettings defaults = AppSettings();
 
   final AppThemeMode themeMode;
   final AppColorPalette palette;
+  final String activeSourceId;
 
   AppSettings copyWith({
     AppThemeMode? themeMode,
     AppColorPalette? palette,
+    String? activeSourceId,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
       palette: palette ?? this.palette,
+      activeSourceId: activeSourceId ?? this.activeSourceId,
     );
   }
 
   Map<String, Object?> toJson() => {
     'themeMode': themeMode.name,
     'palette': palette.name,
+    'activeSourceId': activeSourceId,
   };
 
   /// Toleran terhadap data rusak atau dari versi lain: bagian yang tidak
   /// dikenali memakai nilai bawaan.
   factory AppSettings.fromJson(Object? json) {
     if (json is! Map) return defaults;
+    final rawSource = json['activeSourceId'];
+    final sourceId = (rawSource is String && rawSource.isNotEmpty)
+        ? rawSource
+        : defaults.activeSourceId;
     return AppSettings(
       themeMode: _byName(
         AppThemeMode.values,
@@ -51,6 +62,7 @@ class AppSettings {
         json['palette'],
         defaults.palette,
       ),
+      activeSourceId: sourceId,
     );
   }
 
@@ -58,8 +70,9 @@ class AppSettings {
   bool operator ==(Object other) =>
       other is AppSettings &&
       other.themeMode == themeMode &&
-      other.palette == palette;
+      other.palette == palette &&
+      other.activeSourceId == activeSourceId;
 
   @override
-  int get hashCode => Object.hash(themeMode, palette);
+  int get hashCode => Object.hash(themeMode, palette, activeSourceId);
 }

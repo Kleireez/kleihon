@@ -76,8 +76,9 @@ class _SplashOverlayState extends State<SplashOverlay>
       children: [
         widget.child,
         Positioned.fill(
-          child: FadeTransition(
-            opacity: _overlayOpacity,
+          child: IgnorePointer(
+            child: FadeTransition(
+              opacity: _overlayOpacity,
             child: ColoredBox(
               color: _splashBg,
               child: Center(
@@ -119,6 +120,7 @@ class _SplashOverlayState extends State<SplashOverlay>
               ),
             ),
           ),
+        ),
         ),
       ],
     );

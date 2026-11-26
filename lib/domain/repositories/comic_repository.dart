@@ -13,6 +13,11 @@ abstract class ComicRepository {
     required int page,
   });
 
+  Future<PagedResult<Comic>> getPopular({
+    required String sourceId,
+    required int page,
+  });
+
   Future<PagedResult<Comic>> search({
     required String sourceId,
     required String query,

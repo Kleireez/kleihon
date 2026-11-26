@@ -1,10 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../local/local_providers.dart';
+import 'mangadex_source.dart';
 import 'source_registry.dart';
 
-/// Sumber yang terdaftar. Sumber online ditambahkan di sini setelah
-/// aksesnya terbukti sah dan terjangkau (lihat docs/decisions.md).
+final mangaDexSourceProvider = Provider<MangaDexSource>(
+  (ref) => MangaDexSource(),
+);
+
+/// Sumber yang terdaftar (lokal dan sumber online resmi yang dapat diakses).
 final sourceRegistryProvider = Provider<SourceRegistry>((ref) {
-  return SourceRegistry([ref.watch(localComicSourceProvider)]);
+  return SourceRegistry([
+    ref.watch(localComicSourceProvider),
+    ref.watch(mangaDexSourceProvider),
+  ]);
 });

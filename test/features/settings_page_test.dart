@@ -218,6 +218,8 @@ void main() {
       expect(find.text('$appVersion ($appBuild)'), findsOneWidget);
       expect(find.text('Lisensi sumber terbuka'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Kebijakan privasi'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Kebijakan privasi'));
       await tester.pumpAndSettle();
 

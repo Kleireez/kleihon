@@ -204,25 +204,25 @@ class CbzExtractor {
 
       for (var i = 0; i < pages.length; i++) {
         final entry = pages[i];
-        final data = entry.readBytes();
-        if (data == null) {
-          throw LocalImportException(
-            LocalImportError.notAnArchive,
-            debugMessage: 'Entri tidak terbaca: ${entry.name}',
-          );
+        final ext = p.extension(entry.name).toLowerCase();
+        final fileName = '${(i + 1).toString().padLeft(width, '0')}$ext';
+        final outFile = File(p.join(temp.path, fileName));
+        final output = OutputFileStream(outFile.path);
+        try {
+          entry.writeContent(output);
+        } finally {
+          await output.close();
         }
         // Cek ulang dengan ukuran sebenarnya, bukan hanya ukuran di header.
-        if (data.length > limits.maxPageBytes) {
+        final actualSize = await outFile.length();
+        if (actualSize > limits.maxPageBytes) {
           throw const LocalImportException(LocalImportError.entryTooLarge);
         }
-        written += data.length;
+        written += actualSize;
         if (written > limits.maxTotalBytes) {
           throw const LocalImportException(LocalImportError.totalTooLarge);
         }
 
-        final ext = p.extension(entry.name).toLowerCase();
-        final fileName = '${(i + 1).toString().padLeft(width, '0')}$ext';
-        await File(p.join(temp.path, fileName)).writeAsBytes(data, flush: true);
         names.add(fileName);
       }
 

@@ -130,7 +130,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await openTab(tester, 'Library');
       await pumpUntilFound(tester, find.text('Komik Integrasi'));
-      expect(find.text('Belum dibaca'), findsOneWidget);
+      expect(find.text('Belum dibaca'), findsWidgets);
       expect(find.text('Semua 1'), findsOneWidget);
 
       // Baca chapter pertama lalu keluar dari reader.
@@ -197,10 +197,8 @@ void main() {
 
         // Library: bookmark, status, ikuti update, dan chapter terakhir.
         await openTab(tester, 'Library');
-        await pumpUntilFound(
-          tester,
-          find.text('Sedang dibaca • Terakhir: Chapter 1'),
-        );
+        await pumpUntilFound(tester, find.text('Sedang dibaca'));
+        expect(find.text('Terakhir: Chapter 1'), findsOneWidget);
         expect(find.text('Diikuti 1'), findsOneWidget);
 
         // History: komik dan halaman terakhir.

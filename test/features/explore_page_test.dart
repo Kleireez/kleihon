@@ -410,4 +410,67 @@ void main() {
     expect(history.items, isEmpty);
     expect(find.text('Pencarian terakhir'), findsNothing);
   });
+
+  testWidgets('filter tipe, status, dan genre menyaring daftar komik', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final items = [
+      const Comic(
+        sourceId: 'local',
+        remoteId: 'a',
+        title: 'Komik Manga A',
+        sourceUrl: 'local:a',
+        type: 'Manga',
+        status: 'Ongoing',
+        genres: ['Aksi'],
+      ),
+      const Comic(
+        sourceId: 'local',
+        remoteId: 'b',
+        title: 'Komik Manhwa B',
+        sourceUrl: 'local:b',
+        type: 'Manhwa',
+        status: 'Completed',
+        genres: ['Drama'],
+      ),
+    ];
+    await tester.pumpWidget(
+      testApp(
+        source: FakeComicSource(
+          'local',
+          capabilities: _caps,
+          onLatest: (page) async => PagedResult(
+            items: items,
+            page: page,
+            hasNext: false,
+          ),
+        ),
+        home: const ExplorePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Komik Manga A'), findsOneWidget);
+    expect(find.text('Komik Manhwa B'), findsOneWidget);
+
+    await tester.tap(find.text('Manhwa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Komik Manga A'), findsNothing);
+    expect(find.text('Komik Manhwa B'), findsOneWidget);
+
+    await tester.tap(find.text('Semua'));
+    await tester.pumpAndSettle();
+    expect(find.text('Komik Manga A'), findsOneWidget);
+
+    await tester.tap(find.text('Filter'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tamat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Drama'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Komik Manga A'), findsNothing);
+    expect(find.text('Komik Manhwa B'), findsOneWidget);
+  });
 }

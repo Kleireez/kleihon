@@ -5,6 +5,8 @@ import '../../app/theme/app_theme.dart';
 import '../../core/constants/app_info.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/format_bytes.dart';
+import '../../data/sources/source_providers.dart';
+import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/history_providers.dart';
 import '../../shared/providers/search_history_providers.dart';
 import '../../shared/providers/storage_providers.dart';
@@ -123,6 +125,8 @@ class SettingsPage extends ConsumerWidget {
     final settings = ref.watch(appSettingsProvider);
     final controller = ref.read(appSettingsProvider.notifier);
     final usage = ref.watch(storageUsageProvider);
+    final sources = ref.watch(sourceRegistryProvider).all;
+    final activeSourceId = ref.watch(activeSourceIdProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
@@ -211,6 +215,39 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
           const _SectionHeader(
+            icon: Icons.public_rounded,
+            title: 'Sumber komik',
+          ),
+          _SettingsCard(
+            children: [
+              for (var i = 0; i < sources.length; i++) ...[
+                ListTile(
+                  leading: Icon(
+                    sources[i].id == 'local'
+                        ? Icons.folder_outlined
+                        : Icons.public_rounded,
+                    color: sources[i].id == activeSourceId
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                  ),
+                  title: Text(sources[i].name),
+                  subtitle: Text(
+                    sources[i].id == 'local'
+                        ? 'Berkas CBZ/ZIP yang diimpor ke perangkat'
+                        : 'Katalog online resmi via api.mangadex.org',
+                  ),
+                  trailing: sources[i].id == activeSourceId
+                      ? Icon(Icons.check_rounded, color: scheme.primary)
+                      : null,
+                  onTap: () => controller.update(
+                    settings.copyWith(activeSourceId: sources[i].id),
+                  ),
+                ),
+                if (i < sources.length - 1) const Divider(height: 1),
+              ],
+            ],
+          ),
+          const _SectionHeader(
             icon: Icons.sd_storage_outlined,
             title: 'Penyimpanan',
           ),
@@ -272,6 +309,12 @@ class SettingsPage extends ConsumerWidget {
                 leading: Icon(Icons.info_outline),
                 title: Text('Versi aplikasi'),
                 subtitle: Text('$appVersion ($appBuild)'),
+              ),
+              const Divider(height: 1),
+              const ListTile(
+                leading: Icon(Icons.public_outlined),
+                title: Text('Sumber online'),
+                subtitle: Text('Didukung oleh MangaDex API'),
               ),
               const Divider(height: 1),
               ListTile(

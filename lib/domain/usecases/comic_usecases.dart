@@ -13,6 +13,15 @@ class GetLatestComics {
       _repository.getLatest(sourceId: sourceId, page: page);
 }
 
+class GetPopularComics {
+  const GetPopularComics(this._repository);
+
+  final ComicRepository _repository;
+
+  Future<PagedResult<Comic>> call({required String sourceId, int page = 1}) =>
+      _repository.getPopular(sourceId: sourceId, page: page);
+}
+
 class SearchComics {
   const SearchComics(this._repository);
 

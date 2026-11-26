@@ -14,10 +14,74 @@ final exploreDebounceProvider = Provider<Duration>(
   (ref) => const Duration(milliseconds: 400),
 );
 
+enum ExploreStatusFilter {
+  ongoing('Berjalan'),
+  completed('Tamat');
+
+  const ExploreStatusFilter(this.label);
+  final String label;
+
+  bool matches(String? raw) {
+    final value = raw?.trim().toLowerCase() ?? '';
+    if (value.isEmpty) return false;
+    switch (this) {
+      case ExploreStatusFilter.ongoing:
+        return value == 'ongoing' || value == 'berjalan';
+      case ExploreStatusFilter.completed:
+        return value == 'completed' || value == 'tamat';
+    }
+  }
+}
+
+class ExploreFilter {
+  const ExploreFilter({this.type, this.status, this.genre});
+
+  final String? type;
+  final ExploreStatusFilter? status;
+  final String? genre;
+
+  bool get isEmpty => type == null && status == null && genre == null;
+
+  int get advancedCount => (status != null ? 1 : 0) + (genre != null ? 1 : 0);
+
+  bool matches(Comic comic) {
+    if (type != null &&
+        (comic.type ?? '').trim().toLowerCase() != type!.toLowerCase()) {
+      return false;
+    }
+    if (status != null && !status!.matches(comic.status)) {
+      return false;
+    }
+    if (genre != null &&
+        !comic.genres.any(
+          (g) => g.trim().toLowerCase() == genre!.toLowerCase(),
+        )) {
+      return false;
+    }
+    return true;
+  }
+
+  ExploreFilter copyWith({
+    String? type,
+    ExploreStatusFilter? status,
+    String? genre,
+    bool clearType = false,
+    bool clearStatus = false,
+    bool clearGenre = false,
+  }) {
+    return ExploreFilter(
+      type: clearType ? null : (type ?? this.type),
+      status: clearStatus ? null : (status ?? this.status),
+      genre: clearGenre ? null : (genre ?? this.genre),
+    );
+  }
+}
+
 class ExploreState {
   const ExploreState({
     this.query = '',
     this.items = const [],
+    this.filter = const ExploreFilter(),
     this.page = 0,
     this.hasNext = false,
     this.loading = false,
@@ -28,6 +92,7 @@ class ExploreState {
 
   final String query;
   final List<Comic> items;
+  final ExploreFilter filter;
 
   /// Halaman terakhir yang berhasil dimuat (0 = belum ada).
   final int page;
@@ -43,9 +108,25 @@ class ExploreState {
   /// Kegagalan memuat halaman berikutnya. Daftar yang ada tetap dipertahankan.
   final AppException? moreError;
 
+  List<Comic> get filteredItems =>
+      filter.isEmpty ? items : items.where(filter.matches).toList();
+
+  List<String> get availableGenres {
+    final seen = <String>{};
+    for (final comic in items) {
+      for (final g in comic.genres) {
+        final trimmed = g.trim();
+        if (trimmed.isNotEmpty) seen.add(trimmed);
+      }
+    }
+    final sorted = seen.toList()..sort();
+    return sorted;
+  }
+
   ExploreState copyWith({
     String? query,
     List<Comic>? items,
+    ExploreFilter? filter,
     int? page,
     bool? hasNext,
     bool? loading,
@@ -58,6 +139,7 @@ class ExploreState {
     return ExploreState(
       query: query ?? this.query,
       items: items ?? this.items,
+      filter: filter ?? this.filter,
       page: page ?? this.page,
       hasNext: hasNext ?? this.hasNext,
       loading: loading ?? this.loading,
@@ -84,6 +166,7 @@ class ExploreController extends Notifier<ExploreState> {
       _disposed = true;
       _debounce?.cancel();
     });
+    ref.watch(activeSourceIdProvider);
     ref.listen<int>(libraryRevisionProvider, (previous, next) => refresh());
     scheduleMicrotask(_loadFirst);
     return const ExploreState(loading: true);
@@ -104,13 +187,41 @@ class ExploreController extends Notifier<ExploreState> {
   void searchNow(String value) {
     _debounce?.cancel();
     final query = value.trim();
-    if (query == state.query) return;
+    if (query == state.query && state.error == null) return;
     unawaited(_loadFirst(query: query));
   }
 
   Future<void> refresh() {
     _debounce?.cancel();
     return _loadFirst();
+  }
+
+  void setTypeFilter(String? type) {
+    state = state.copyWith(
+      filter: type == null
+          ? state.filter.copyWith(clearType: true)
+          : state.filter.copyWith(type: type),
+    );
+  }
+
+  void setStatusFilter(ExploreStatusFilter? status) {
+    state = state.copyWith(
+      filter: status == null
+          ? state.filter.copyWith(clearStatus: true)
+          : state.filter.copyWith(status: status),
+    );
+  }
+
+  void setGenreFilter(String? genre) {
+    state = state.copyWith(
+      filter: genre == null
+          ? state.filter.copyWith(clearGenre: true)
+          : state.filter.copyWith(genre: genre),
+    );
+  }
+
+  void clearFilters() {
+    state = state.copyWith(filter: const ExploreFilter());
   }
 
   Future<void> loadMore() async {

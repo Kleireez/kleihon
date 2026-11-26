@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/routes.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/errors/app_exception.dart';
+import '../../data/sources/source_providers.dart';
 import '../../domain/entities/comic.dart';
 import '../../domain/entities/history.dart';
 import '../../domain/entities/source_capability.dart';
@@ -14,16 +15,101 @@ import '../../shared/providers/history_providers.dart';
 import '../../shared/widgets/comic_cover.dart';
 import '../../shared/widgets/comic_grid_tile.dart';
 import '../local_import/local_import_flow.dart';
+import '../settings/app_settings_providers.dart';
 import 'home_providers.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
+  void _openSourcePicker(BuildContext context, WidgetRef ref) {
+    final sources = ref.read(sourceRegistryProvider).all;
+    final activeId = ref.read(activeSourceIdProvider);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: scheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              Text('Pilih sumber komik', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Material(
+                color: scheme.surfaceContainer,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: AppTheme.hairlineOf(context)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < sources.length; i++) ...[
+                      ListTile(
+                        leading: Icon(
+                          sources[i].id == 'local'
+                              ? Icons.folder_outlined
+                              : Icons.public_rounded,
+                          color: sources[i].id == activeId
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          sources[i].name,
+                          style: sources[i].id == activeId
+                              ? TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                )
+                              : null,
+                        ),
+                        trailing: sources[i].id == activeId
+                            ? Icon(Icons.check_rounded, color: scheme.primary)
+                            : null,
+                        onTap: () {
+                          final current = ref.read(appSettingsProvider);
+                          ref
+                              .read(appSettingsProvider.notifier)
+                              .update(
+                                current.copyWith(activeSourceId: sources[i].id),
+                              );
+                          Navigator.pop(context);
+                        },
+                      ),
+                      if (i < sources.length - 1) const Divider(height: 1),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sourceId = ref.watch(activeSourceIdProvider);
+    final registry = ref.watch(sourceRegistryProvider);
+    final hasMultipleSources = registry.all.length > 1;
     final repository = ref.watch(comicRepositoryProvider);
     final latest = ref.watch(homeLatestProvider);
+    final popular = ref.watch(homePopularProvider);
     final history = ref.watch(historyEntriesProvider).value;
     final lastRead = (history != null && history.isNotEmpty)
         ? history.first
@@ -77,7 +163,14 @@ class HomePage extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(homeLatestProvider.future),
+        onRefresh: () {
+          final tasks = <Future<Object?>>[
+            ref.refresh(homeLatestProvider.future),
+            if (repository.supports(sourceId, SourceCapability.popular))
+              ref.refresh(homePopularProvider.future),
+          ];
+          return Future.wait(tasks);
+        },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
@@ -86,23 +179,49 @@ class HomePage extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Row(
                 children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      sourceId == 'local'
-                          ? 'ARSIP MANDIRI AKTIF'
-                          : 'SUMBER: ${sourceId.toUpperCase()}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        letterSpacing: 1.0,
-                        color: scheme.onSurfaceVariant,
+                    child: InkWell(
+                      onTap: hasMultipleSources
+                          ? () => _openSourcePicker(context, ref)
+                          : null,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: scheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                sourceId == 'local'
+                                    ? 'ARSIP MANDIRI AKTIF'
+                                    : 'SUMBER: ${sourceId.toUpperCase()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  letterSpacing: 1.0,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            if (hasMultipleSources) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 16,
+                                color: scheme.primary,
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -204,7 +323,20 @@ class HomePage extends ConsumerWidget {
             ),
             // Bagian berikut hanya menampilkan "tidak tersedia". Jika sebuah
             // sumber mendukungnya, isinya dibuat di langkah tersendiri.
-            if (!repository.supports(sourceId, SourceCapability.popular))
+            if (repository.supports(sourceId, SourceCapability.popular)) ...[
+              _SectionHeader(
+                title: 'Populer',
+                onSeeAll: () => context.go(AppRoutes.explore),
+              ),
+              _LatestSection(
+                value: popular,
+                onRetry: () => ref.invalidate(homePopularProvider),
+                onImport: () => importLocalComic(context, ref),
+                onOpen: (comic) => context.push(
+                  AppRoutes.comic(comic.sourceId, comic.remoteId),
+                ),
+              ),
+            ] else
               const _UnavailableSection(title: 'Populer'),
             if (!repository.supports(sourceId, SourceCapability.home))
               const _UnavailableSection(title: 'Rekomendasi'),

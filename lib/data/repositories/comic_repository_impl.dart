@@ -23,6 +23,12 @@ class ComicRepositoryImpl implements ComicRepository {
   }) => _guard(() => _source(sourceId).getLatest(page));
 
   @override
+  Future<PagedResult<Comic>> getPopular({
+    required String sourceId,
+    required int page,
+  }) => _guard(() => _source(sourceId).getPopular(page));
+
+  @override
   Future<PagedResult<Comic>> search({
     required String sourceId,
     required String query,

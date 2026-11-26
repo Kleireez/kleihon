@@ -13,6 +13,10 @@ final getLatestComicsProvider = Provider<GetLatestComics>(
   (ref) => GetLatestComics(ref.watch(comicRepositoryProvider)),
 );
 
+final getPopularComicsProvider = Provider<GetPopularComics>(
+  (ref) => GetPopularComics(ref.watch(comicRepositoryProvider)),
+);
+
 final searchComicsProvider = Provider<SearchComics>(
   (ref) => SearchComics(ref.watch(comicRepositoryProvider)),
 );

@@ -143,7 +143,9 @@ Future<T> _withProgress<T>(
   try {
     return await task();
   } finally {
-    navigator.pop();
+    if (navigator.mounted && navigator.canPop()) {
+      navigator.pop();
+    }
   }
 }
 

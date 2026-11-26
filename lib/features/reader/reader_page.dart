@@ -549,8 +549,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final height = constraints.maxHeight;
         final dpr = MediaQuery.devicePixelRatioOf(context);
         final decodeWidth = (width * dpr).round();
+        final previousWidth = _pageWidth;
         _pageWidth = width;
         _pageCount = pages.length;
+
+        if (previousWidth > 0 && (previousWidth - width).abs() > 0.5) {
+          final scaled = _lastOffset * (width / previousWidth);
+          _lastOffset = scaled;
+          final scroll = _scrollController;
+          if (scroll != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && scroll.hasClients) {
+                final max = scroll.position.maxScrollExtent;
+                scroll.jumpTo(scaled.clamp(0.0, max));
+              }
+            });
+          }
+        }
 
         final horizontal = settings.readingMode.isHorizontal;
         _syncMode(horizontal: horizontal);

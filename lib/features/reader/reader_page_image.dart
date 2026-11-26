@@ -98,7 +98,9 @@ class _ReaderPageImageState extends State<ReaderPageImage> {
   void _resolve({bool force = false}) {
     final provider = _provider();
     if (provider == null) {
-      _error ??= 'Alamat gambar tidak valid';
+      if (_error == null && mounted) {
+        setState(() => _error = 'Alamat gambar tidak valid');
+      }
       return;
     }
     final stream = provider.resolve(createLocalImageConfiguration(context));

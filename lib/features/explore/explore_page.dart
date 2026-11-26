@@ -270,6 +270,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final filtered = state.filteredItems;
 
     return RefreshIndicator(
       onRefresh: controller.refresh,
@@ -283,8 +284,15 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: [
             SliverToBoxAdapter(
+              child: _FilterBar(
+                state: state,
+                onSelectType: controller.setTypeFilter,
+                onOpenAdvanced: () => _openFilterSheet(context, controller),
+              ),
+            ),
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                 child: Row(
                   children: [
                     Text(
@@ -295,7 +303,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '• ${state.items.length} judul',
+                      '• ${filtered.length} judul',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -304,37 +312,215 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              sliver: SliverGrid.builder(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 140,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 0.54,
+            if (filtered.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _Message(
+                  icon: Icons.filter_alt_off_outlined,
+                  text: 'Tidak ada komik yang cocok dengan filter.',
+                  actionLabel: 'Reset filter',
+                  onAction: controller.clearFilters,
                 ),
-                itemCount: state.items.length,
-                itemBuilder: (context, index) {
-                  final comic = state.items[index];
-                  return ComicGridTile(
-                    comic: comic,
-                    onTap: () {
-                      _searchFocus.unfocus();
-                      // Membuka hasil pencarian berarti pencarian itu berguna.
-                      if (state.query.isNotEmpty) {
-                        unawaited(_remember(state.query));
-                      }
-                      context.push(
-                        AppRoutes.comic(comic.sourceId, comic.remoteId),
-                      );
-                    },
-                  );
-                },
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                sliver: SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 140,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.54,
+                  ),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final comic = filtered[index];
+                    return ComicGridTile(
+                      comic: comic,
+                      onTap: () {
+                        _searchFocus.unfocus();
+                        // Membuka hasil pencarian berarti pencarian itu berguna.
+                        if (state.query.isNotEmpty) {
+                          unawaited(_remember(state.query));
+                        }
+                        context.push(
+                          AppRoutes.comic(comic.sourceId, comic.remoteId),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
             SliverToBoxAdapter(
               child: _Footer(state: state, controller: controller),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openFilterSheet(BuildContext context, ExploreController controller) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => _ExploreFilterSheet(controller: controller),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.state,
+    required this.onSelectType,
+    required this.onOpenAdvanced,
+  });
+
+  static const List<String> _types = ['Manga', 'Manhwa', 'Manhua'];
+
+  final ExploreState state;
+  final ValueChanged<String?> onSelectType;
+  final VoidCallback onOpenAdvanced;
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = state.filter;
+    final advanced = filter.advancedCount;
+    final scheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: 48,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                showCheckmark: false,
+                label: const Text('Semua'),
+                selected: filter.type == null,
+                onSelected: (_) => onSelectType(null),
+              ),
+            ),
+            for (final type in _types)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  showCheckmark: false,
+                  label: Text(type),
+                  selected: filter.type == type,
+                  onSelected: (_) =>
+                      onSelectType(filter.type == type ? null : type),
+                ),
+              ),
+            ActionChip(
+              avatar: Icon(
+                Icons.tune_rounded,
+                size: 16,
+                color: advanced > 0 ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              label: Text(advanced > 0 ? 'Filter ($advanced)' : 'Filter'),
+              side: BorderSide(
+                color: advanced > 0
+                    ? scheme.primary
+                    : AppTheme.hairlineOf(context),
+              ),
+              onPressed: onOpenAdvanced,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExploreFilterSheet extends ConsumerWidget {
+  const _ExploreFilterSheet({required this.controller});
+
+  final ExploreController controller;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(exploreControllerProvider);
+    final filter = state.filter;
+    final genres = state.availableGenres;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: scheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Text('Filter Katalog', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                if (!filter.isEmpty)
+                  TextButton(
+                    onPressed: controller.clearFilters,
+                    child: const Text('Reset'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('Status', style: theme.textTheme.labelMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final status in ExploreStatusFilter.values)
+                  ChoiceChip(
+                    showCheckmark: false,
+                    label: Text(status.label),
+                    selected: filter.status == status,
+                    onSelected: (_) => controller.setStatusFilter(
+                      filter.status == status ? null : status,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text('Genre', style: theme.textTheme.labelMedium),
+            const SizedBox(height: 8),
+            if (genres.isEmpty)
+              Text(
+                'Belum ada metadata genre pada koleksi saat ini.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final genre in genres)
+                    ChoiceChip(
+                      showCheckmark: false,
+                      label: Text(genre),
+                      selected: filter.genre == genre,
+                      onSelected: (_) => controller.setGenreFilter(
+                        filter.genre == genre ? null : genre,
+                      ),
+                    ),
+                ],
+              ),
           ],
         ),
       ),
