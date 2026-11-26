@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kleihon/core/constants/app_info.dart';
 import 'package:kleihon/domain/entities/history.dart';
 import 'package:kleihon/features/reader/reader_settings.dart';
 import 'package:kleihon/features/settings/app_settings.dart';
@@ -11,6 +12,7 @@ import '../helpers/fake_comic_source.dart';
 import '../helpers/fake_history_repository.dart';
 import '../helpers/fake_reader_services.dart';
 import '../helpers/fake_search_history_repository.dart';
+import '../helpers/fake_storage_service.dart';
 import '../helpers/test_app.dart';
 
 Future<void> pumpSettings(
@@ -19,6 +21,7 @@ Future<void> pumpSettings(
   InMemoryReaderSettingsStore? readerStore,
   FakeHistoryRepository? history,
   FakeSearchHistoryRepository? searchHistory,
+  FakeStorageService? storage,
 }) async {
   useTallScreen(tester);
   await tester.pumpWidget(
@@ -29,6 +32,7 @@ Future<void> pumpSettings(
       settingsStore: readerStore,
       history: history,
       searchHistory: searchHistory,
+      storage: storage,
     ),
   );
   await tester.pumpAndSettle();
@@ -42,9 +46,11 @@ void main() {
     expect(find.text('Tema'), findsOneWidget);
     expect(find.text('Reader'), findsOneWidget);
     expect(find.text('Mode baca'), findsOneWidget);
+    expect(find.text('Penyimpanan'), findsOneWidget);
     expect(find.text('Data pribadi'), findsOneWidget);
     expect(find.text('Hapus riwayat baca'), findsOneWidget);
     expect(find.text('Hapus riwayat pencarian'), findsOneWidget);
+    expect(find.text('Tentang'), findsOneWidget);
   });
 
   testWidgets('mengganti tema menerapkan dan menyimpan pilihan', (
@@ -138,4 +144,64 @@ void main() {
     expect(searchHistory.items, isEmpty);
     expect(find.text('Riwayat pencarian dihapus.'), findsOneWidget);
   });
+
+  testWidgets('penyimpanan menampilkan ukuran perpustakaan dan cache', (
+    tester,
+  ) async {
+    await pumpSettings(
+      tester,
+      storage: FakeStorageService(library: 3 * 1024 * 1024, cache: 2 * 1024),
+    );
+
+    expect(find.textContaining('3,0 MB'), findsOneWidget);
+    expect(find.text('2,0 KB'), findsOneWidget);
+  });
+
+  testWidgets('hapus cache membersihkan dan memperbarui ukuran', (
+    tester,
+  ) async {
+    final storage = FakeStorageService(cache: 2 * 1024);
+    await pumpSettings(tester, storage: storage);
+
+    await tester.tap(find.text('Hapus cache'));
+    await tester.pumpAndSettle();
+
+    expect(storage.clearCalls, 1);
+    expect(find.text('Cache dibersihkan (2,0 KB).'), findsOneWidget);
+    expect(find.text('0 B'), findsOneWidget);
+  });
+
+  testWidgets('hapus cache saat sudah bersih memberi tahu', (tester) async {
+    final storage = FakeStorageService();
+    await pumpSettings(tester, storage: storage);
+
+    await tester.tap(find.text('Hapus cache'));
+    await tester.pumpAndSettle();
+
+    expect(storage.clearCalls, 1);
+    expect(find.text('Cache sudah bersih.'), findsOneWidget);
+  });
+
+  testWidgets('gagal menghitung ukuran ditampilkan sebagai pesan', (
+    tester,
+  ) async {
+    await pumpSettings(tester, storage: FakeStorageService(failReads: true));
+
+    expect(find.textContaining('Tidak dapat dihitung'), findsNWidgets(2));
+  });
+
+  testWidgets(
+    'bagian Tentang menampilkan versi dan membuka kebijakan privasi',
+    (tester) async {
+      await pumpSettings(tester);
+
+      expect(find.text('$appVersion ($appBuild)'), findsOneWidget);
+      expect(find.text('Lisensi sumber terbuka'), findsOneWidget);
+
+      await tester.tap(find.text('Kebijakan privasi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kebijakan Privasi KleiHon'), findsOneWidget);
+    },
+  );
 }

@@ -13,6 +13,7 @@ import 'package:kleihon/shared/providers/bookmark_providers.dart';
 import 'package:kleihon/shared/providers/history_providers.dart';
 import 'package:kleihon/shared/providers/reading_progress_providers.dart';
 import 'package:kleihon/shared/providers/search_history_providers.dart';
+import 'package:kleihon/shared/providers/storage_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'fake_app_settings_store.dart';
@@ -22,6 +23,7 @@ import 'fake_history_repository.dart';
 import 'fake_reader_services.dart';
 import 'fake_reading_progress_repository.dart';
 import 'fake_search_history_repository.dart';
+import 'fake_storage_service.dart';
 
 /// Layar tinggi supaya daftar tidak terpotong di test.
 void useTallScreen(WidgetTester tester) {
@@ -61,6 +63,7 @@ Widget testApp({
   InMemoryReaderSettingsStore? settingsStore,
   InMemoryAppSettingsStore? appSettingsStore,
   AppSettings? appSettings,
+  FakeStorageService? storage,
   FakeScreenAwake? screenAwake,
   DateTime Function()? clock,
   ThemeData? theme,
@@ -98,6 +101,7 @@ Widget testApp({
       initialAppSettingsProvider.overrideWithValue(
         appSettings ?? AppSettings.defaults,
       ),
+      storageServiceProvider.overrideWithValue(storage ?? FakeStorageService()),
       readerScreenAwakeProvider.overrideWithValue(
         screenAwake ?? FakeScreenAwake(),
       ),

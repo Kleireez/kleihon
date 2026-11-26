@@ -49,9 +49,8 @@ class ReaderSettingsForm extends ConsumerWidget {
                   ButtonSegment(value: fit, label: Text(fit.label)),
               ],
               selected: {settings.pageFit},
-              onSelectionChanged: (selection) => controller.apply(
-                settings.copyWith(pageFit: selection.first),
-              ),
+              onSelectionChanged: (selection) =>
+                  controller.apply(settings.copyWith(pageFit: selection.first)),
             ),
           ),
         ],
@@ -66,9 +65,8 @@ class ReaderSettingsForm extends ConsumerWidget {
               _Swatch(
                 background: background,
                 selected: background == settings.background,
-                onTap: () => controller.apply(
-                  settings.copyWith(background: background),
-                ),
+                onTap: () =>
+                    controller.apply(settings.copyWith(background: background)),
               ),
           ],
         ),
@@ -165,4 +163,3 @@ class _Swatch extends StatelessWidget {
     );
   }
 }
-

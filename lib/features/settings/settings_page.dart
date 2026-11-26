@@ -1,13 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/constants/app_info.dart';
 import '../../core/utils/app_logger.dart';
+import '../../core/utils/format_bytes.dart';
 import '../../shared/providers/history_providers.dart';
 import '../../shared/providers/search_history_providers.dart';
+import '../../shared/providers/storage_providers.dart';
 import '../reader/reader_settings_sheet.dart';
 import 'app_settings.dart';
 import 'app_settings_labels.dart';
 import 'app_settings_providers.dart';
+import 'privacy_policy.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -91,10 +95,39 @@ class SettingsPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _clearCache(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    try {
+      final freed = await ref.read(storageServiceProvider).clearCache();
+      ref.invalidate(storageUsageProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            freed > 0
+                ? 'Cache dibersihkan (${formatBytes(freed)}).'
+                : 'Cache sudah bersih.',
+          ),
+        ),
+      );
+    } catch (e, s) {
+      appLogger.e('Gagal membersihkan cache', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal membersihkan cache.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final controller = ref.read(appSettingsProvider.notifier);
+    final usage = ref.watch(storageUsageProvider);
+
+    String sizeText(int Function(StorageUsage usage) pick) => usage.when(
+      data: (value) => formatBytes(pick(value)),
+      loading: () => 'Menghitung...',
+      error: (error, stack) => 'Tidak dapat dihitung',
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -131,6 +164,25 @@ class SettingsPage extends ConsumerWidget {
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: ReaderSettingsForm(),
           ),
+          const _SectionHeader('Penyimpanan'),
+          ListTile(
+            leading: const Icon(Icons.folder_outlined),
+            title: const Text('Perpustakaan lokal'),
+            subtitle: Text(
+              '${sizeText((value) => value.libraryBytes)}\n'
+              'Komik yang kamu impor. Hapus lewat halaman komik.',
+            ),
+            isThreeLine: true,
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services_outlined),
+            title: const Text('Cache'),
+            subtitle: Text(sizeText((value) => value.cacheBytes)),
+            trailing: TextButton(
+              onPressed: () => _clearCache(context, ref),
+              child: const Text('Hapus cache'),
+            ),
+          ),
           const _SectionHeader('Data pribadi'),
           ListTile(
             leading: const Icon(Icons.history),
@@ -144,6 +196,30 @@ class SettingsPage extends ConsumerWidget {
             leading: const Icon(Icons.search_off),
             title: const Text('Hapus riwayat pencarian'),
             onTap: () => _clearSearchHistory(context, ref),
+          ),
+          const _SectionHeader('Tentang'),
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('Versi aplikasi'),
+            subtitle: Text('$appVersion ($appBuild)'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Kebijakan privasi'),
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PrivacyPolicyPage(),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Lisensi sumber terbuka'),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: appName,
+              applicationVersion: appVersion,
+            ),
           ),
         ],
       ),
