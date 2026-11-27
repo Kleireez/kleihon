@@ -15,16 +15,16 @@ Perangkat: 22101316G
 
 ## Uji asap di build release (`flutter run --release`)
 
-- [ ] Aplikasi terbuka, Home menampilkan komik (SQLite berjalan)
-- [ ] Explore: pencarian, tombol cari, saran pencarian
-- [ ] Bookmark dan Library
-- [ ] Reader vertikal: gulir mulus, slider halaman
-- [ ] Reader horizontal (kiri ke kanan dan kanan ke kiri)
-- [ ] History dan tombol Lanjut membaca
-- [ ] Impor CBZ lewat pemilih berkas
-- [ ] Settings: tema, penyimpanan, hapus cache, kebijakan privasi
-- [ ] Hapus chapter atau komik
-- [ ] Tutup aplikasi sepenuhnya lalu buka lagi: data tetap ada
+- [x] Aplikasi terbuka, Home menampilkan komik (SQLite berjalan)
+- [x] Explore: pencarian, tombol cari, saran pencarian
+- [x] Bookmark dan Library
+- [x] Reader vertikal: gulir mulus, slider halaman
+- [x] Reader horizontal (kiri ke kanan dan kanan ke kiri)
+- [x] History dan tombol Lanjut membaca
+- [x] Impor CBZ lewat pemilih berkas
+- [x] Settings: tema, penyimpanan, hapus cache, kebijakan privasi
+- [x] Hapus chapter atau komik
+- [x] Tutup aplikasi sepenuhnya lalu buka lagi: data tetap ada
 
 ## Kompatibilitas
 
