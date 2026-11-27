@@ -42,3 +42,16 @@ final homePopularProvider = FutureProvider.autoDispose<List<Comic>?>((
   );
   return result.items.take(homeSectionLimit).toList();
 });
+
+/// Rekomendasi untuk Home. Bernilai null jika sumber aktif tidak mendukung.
+final homeRecommendedProvider = FutureProvider.autoDispose<List<Comic>?>((
+  ref,
+) async {
+  final sourceId = ref.watch(activeSourceIdProvider);
+  final repository = ref.watch(comicRepositoryProvider);
+
+  if (!repository.supports(sourceId, SourceCapability.home)) return null;
+
+  final data = await ref.watch(getHomeDataProvider)(sourceId: sourceId);
+  return data.recommended?.take(homeSectionLimit).toList();
+});

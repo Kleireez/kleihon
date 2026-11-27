@@ -8,6 +8,8 @@ import '../entities/source_results.dart';
 abstract class ComicRepository {
   bool supports(String sourceId, SourceCapability capability);
 
+  Future<HomeData> getHome({required String sourceId});
+
   Future<PagedResult<Comic>> getLatest({
     required String sourceId,
     required int page,
@@ -15,6 +17,14 @@ abstract class ComicRepository {
 
   Future<PagedResult<Comic>> getPopular({
     required String sourceId,
+    required int page,
+  });
+
+  Future<List<Genre>> getGenres({required String sourceId});
+
+  Future<PagedResult<Comic>> getComicsByGenre({
+    required String sourceId,
+    required String genreId,
     required int page,
   });
 

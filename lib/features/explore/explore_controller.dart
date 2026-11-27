@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/providers/library_revision_provider.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/comic.dart';
+import '../../domain/entities/source_capability.dart';
 import '../../domain/entities/source_results.dart';
 import '../../shared/providers/active_source_provider.dart';
 import '../../shared/providers/comic_providers.dart';
@@ -13,6 +14,18 @@ import '../../shared/providers/comic_providers.dart';
 final exploreDebounceProvider = Provider<Duration>(
   (ref) => const Duration(milliseconds: 400),
 );
+
+/// Daftar genre dari API sumber aktif (kosong jika sumber tidak mendukung).
+final exploreGenresProvider = FutureProvider.autoDispose<List<Genre>>((
+  ref,
+) async {
+  final sourceId = ref.watch(activeSourceIdProvider);
+  final repository = ref.watch(comicRepositoryProvider);
+  if (!repository.supports(sourceId, SourceCapability.genres)) {
+    return const <Genre>[];
+  }
+  return ref.watch(getGenresProvider)(sourceId: sourceId);
+});
 
 enum ExploreStatusFilter {
   ongoing('Berjalan'),
@@ -34,15 +47,19 @@ enum ExploreStatusFilter {
 }
 
 class ExploreFilter {
-  const ExploreFilter({this.type, this.status, this.genre});
+  const ExploreFilter({this.type, this.status, this.genre, this.apiGenre});
 
   final String? type;
   final ExploreStatusFilter? status;
   final String? genre;
+  final Genre? apiGenre;
 
-  bool get isEmpty => type == null && status == null && genre == null;
+  bool get isEmpty =>
+      type == null && status == null && genre == null && apiGenre == null;
 
-  int get advancedCount => (status != null ? 1 : 0) + (genre != null ? 1 : 0);
+  int get advancedCount =>
+      (status != null ? 1 : 0) +
+      (genre != null || apiGenre != null ? 1 : 0);
 
   bool matches(Comic comic) {
     if (type != null &&
@@ -65,14 +82,17 @@ class ExploreFilter {
     String? type,
     ExploreStatusFilter? status,
     String? genre,
+    Genre? apiGenre,
     bool clearType = false,
     bool clearStatus = false,
     bool clearGenre = false,
+    bool clearApiGenre = false,
   }) {
     return ExploreFilter(
       type: clearType ? null : (type ?? this.type),
       status: clearStatus ? null : (status ?? this.status),
       genre: clearGenre ? null : (genre ?? this.genre),
+      apiGenre: clearApiGenre ? null : (apiGenre ?? this.apiGenre),
     );
   }
 }
@@ -220,8 +240,22 @@ class ExploreController extends Notifier<ExploreState> {
     );
   }
 
+  void setApiGenreFilter(Genre? genre) {
+    _debounce?.cancel();
+    state = state.copyWith(
+      filter: genre == null
+          ? state.filter.copyWith(clearApiGenre: true)
+          : state.filter.copyWith(apiGenre: genre, clearGenre: true),
+    );
+    unawaited(_loadFirst());
+  }
+
   void clearFilters() {
+    final hadApiGenre = state.filter.apiGenre != null;
     state = state.copyWith(filter: const ExploreFilter());
+    if (hadApiGenre) {
+      unawaited(_loadFirst());
+    }
   }
 
   Future<void> loadMore() async {
@@ -302,7 +336,15 @@ class ExploreController extends Notifier<ExploreState> {
 
   Future<PagedResult<Comic>> _fetch(String query, int page) {
     final sourceId = ref.read(activeSourceIdProvider);
+    final apiGenre = state.filter.apiGenre;
     if (query.isEmpty) {
+      if (apiGenre != null) {
+        return ref.read(getComicsByGenreProvider)(
+          sourceId: sourceId,
+          genreId: apiGenre.id,
+          page: page,
+        );
+      }
       return ref.read(getLatestComicsProvider)(sourceId: sourceId, page: page);
     }
     return ref.read(searchComicsProvider)(

@@ -110,6 +110,7 @@ class HomePage extends ConsumerWidget {
     final repository = ref.watch(comicRepositoryProvider);
     final latest = ref.watch(homeLatestProvider);
     final popular = ref.watch(homePopularProvider);
+    final recommended = ref.watch(homeRecommendedProvider);
     final history = ref.watch(historyEntriesProvider).value;
     final lastRead = (history != null && history.isNotEmpty)
         ? history.first
@@ -168,6 +169,8 @@ class HomePage extends ConsumerWidget {
             ref.refresh(homeLatestProvider.future),
             if (repository.supports(sourceId, SourceCapability.popular))
               ref.refresh(homePopularProvider.future),
+            if (repository.supports(sourceId, SourceCapability.home))
+              ref.refresh(homeRecommendedProvider.future),
           ];
           return Future.wait(tasks);
         },
@@ -338,7 +341,20 @@ class HomePage extends ConsumerWidget {
               ),
             ] else
               const _UnavailableSection(title: 'Populer'),
-            if (!repository.supports(sourceId, SourceCapability.home))
+            if (repository.supports(sourceId, SourceCapability.home)) ...[
+              _SectionHeader(
+                title: 'Rekomendasi',
+                onSeeAll: () => context.go(AppRoutes.explore),
+              ),
+              _LatestSection(
+                value: recommended,
+                onRetry: () => ref.invalidate(homeRecommendedProvider),
+                onImport: () => importLocalComic(context, ref),
+                onOpen: (comic) => context.push(
+                  AppRoutes.comic(comic.sourceId, comic.remoteId),
+                ),
+              ),
+            ] else
               const _UnavailableSection(title: 'Rekomendasi'),
           ],
         ),

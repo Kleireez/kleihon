@@ -1,13 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/database/database_providers.dart';
 import '../../data/repositories/comic_repository_impl.dart';
 import '../../data/sources/source_providers.dart';
 import '../../domain/repositories/comic_repository.dart';
 import '../../domain/usecases/comic_usecases.dart';
 
 final comicRepositoryProvider = Provider<ComicRepository>((ref) {
-  return ComicRepositoryImpl(ref.watch(sourceRegistryProvider));
+  return ComicRepositoryImpl(
+    ref.watch(sourceRegistryProvider),
+    database: ref.watch(appDatabaseProvider),
+  );
 });
+
+final getHomeDataProvider = Provider<GetHomeData>(
+  (ref) => GetHomeData(ref.watch(comicRepositoryProvider)),
+);
 
 final getLatestComicsProvider = Provider<GetLatestComics>(
   (ref) => GetLatestComics(ref.watch(comicRepositoryProvider)),
@@ -15,6 +23,14 @@ final getLatestComicsProvider = Provider<GetLatestComics>(
 
 final getPopularComicsProvider = Provider<GetPopularComics>(
   (ref) => GetPopularComics(ref.watch(comicRepositoryProvider)),
+);
+
+final getGenresProvider = Provider<GetGenres>(
+  (ref) => GetGenres(ref.watch(comicRepositoryProvider)),
+);
+
+final getComicsByGenreProvider = Provider<GetComicsByGenre>(
+  (ref) => GetComicsByGenre(ref.watch(comicRepositoryProvider)),
 );
 
 final searchComicsProvider = Provider<SearchComics>(

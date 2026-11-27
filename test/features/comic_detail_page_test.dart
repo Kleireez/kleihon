@@ -250,7 +250,7 @@ void main() {
 
     expect(find.byTooltip('Opsi komik'), findsNothing);
     expect(find.byTooltip('Opsi chapter'), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+    expect(find.byTooltip('Unduh chapter'), findsNWidgets(3));
   });
 
   testWidgets('komik tidak ditemukan: pesan dan tombol coba lagi', (

@@ -6,6 +6,8 @@ import '../../app/routes.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/app_logger.dart';
+import '../../data/database/enums.dart';
+import '../../data/downloads/download_service.dart';
 import '../../data/local/local_library_layout.dart';
 import '../../data/local/local_providers.dart';
 import '../../domain/entities/bookmark.dart';
@@ -14,6 +16,7 @@ import '../../domain/entities/comic.dart';
 import '../../domain/entities/reading_progress.dart';
 import '../../domain/usecases/continue_reading.dart';
 import '../../shared/providers/bookmark_providers.dart';
+import '../../shared/providers/download_providers.dart';
 import '../../shared/providers/library_revision_provider.dart';
 import '../../shared/widgets/comic_cover.dart';
 import '../library/bookmark_sheet.dart';
@@ -208,6 +211,45 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     messenger.showSnackBar(const SnackBar(content: Text('Chapter dihapus.')));
   }
 
+  Future<void> _downloadChapter(Chapter chapter) async {
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    try {
+      await ref
+          .read(downloadServiceProvider)
+          .enqueue(
+            sourceId: widget.sourceId,
+            comicRemoteId: widget.comicId,
+            chapterRemoteId: chapter.remoteId,
+          );
+    } catch (e, s) {
+      appLogger.e('Gagal mengantrekan unduhan', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal memulai unduhan chapter.')),
+      );
+    }
+  }
+
+  Future<void> _deleteDownload(Chapter chapter) async {
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    try {
+      await ref
+          .read(downloadServiceProvider)
+          .deleteDownload(
+            sourceId: widget.sourceId,
+            comicRemoteId: widget.comicId,
+            chapterRemoteId: chapter.remoteId,
+          );
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unduhan chapter dihapus.')),
+      );
+    } catch (e, s) {
+      appLogger.e('Gagal menghapus unduhan', error: e, stackTrace: s);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal menghapus unduhan chapter.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_deleted) return const Scaffold();
@@ -279,6 +321,10 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final progress =
         ref.watch(comicProgressProvider(_key)).value ??
         const <String, ReadingProgress>{};
+    final downloads = _isLocal
+        ? const <String, DownloadTaskInfo>{}
+        : (ref.watch(comicDownloadsProvider(_key)).value ??
+              const <String, DownloadTaskInfo>{});
     final target = resolveContinueTarget(
       chapters: data.chapters,
       progress: progress,
@@ -383,7 +429,11 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                                 ),
                               ],
                             )
-                          : const Icon(Icons.chevron_right),
+                          : _DownloadChapterAction(
+                              task: downloads[chapter.remoteId],
+                              onDownload: () => _downloadChapter(chapter),
+                              onDelete: () => _deleteDownload(chapter),
+                            ),
                       onTap: () => _open(chapter),
                     ),
                   );
@@ -393,6 +443,70 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         ],
       ),
     );
+  }
+}
+
+class _DownloadChapterAction extends StatelessWidget {
+  const _DownloadChapterAction({
+    required this.task,
+    required this.onDownload,
+    required this.onDelete,
+  });
+
+  final DownloadTaskInfo? task;
+  final VoidCallback onDownload;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final status = task?.status;
+
+    switch (status) {
+      case DownloadStatus.queued:
+        return IconButton(
+          tooltip: 'Dalam antrean',
+          onPressed: onDelete,
+          icon: Icon(Icons.schedule_rounded, color: scheme.onSurfaceVariant),
+        );
+      case DownloadStatus.downloading:
+        return const SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+      case DownloadStatus.completed:
+        return PopupMenuButton<String>(
+          tooltip: 'Unduhan selesai',
+          icon: Icon(Icons.download_done_rounded, color: scheme.primary),
+          onSelected: (_) => onDelete(),
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'delete',
+              child: Text('Hapus unduhan'),
+            ),
+          ],
+        );
+      case DownloadStatus.failed:
+        return IconButton(
+          tooltip: 'Unduh ulang',
+          onPressed: onDownload,
+          icon: Icon(Icons.error_outline_rounded, color: scheme.error),
+        );
+      case DownloadStatus.cancelled:
+      case null:
+        return IconButton(
+          tooltip: 'Unduh chapter',
+          onPressed: onDownload,
+          icon: Icon(Icons.download_outlined, color: scheme.onSurfaceVariant),
+        );
+    }
   }
 }
 

@@ -444,7 +444,8 @@ class _ExploreFilterSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(exploreControllerProvider);
     final filter = state.filter;
-    final genres = state.availableGenres;
+    final apiGenres = ref.watch(exploreGenresProvider).value ?? const [];
+    final localGenres = state.availableGenres;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
@@ -498,7 +499,23 @@ class _ExploreFilterSheet extends ConsumerWidget {
             const SizedBox(height: 16),
             Text('Genre', style: theme.textTheme.labelMedium),
             const SizedBox(height: 8),
-            if (genres.isEmpty)
+            if (apiGenres.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final genre in apiGenres)
+                    ChoiceChip(
+                      showCheckmark: false,
+                      label: Text(genre.name),
+                      selected: filter.apiGenre?.id == genre.id,
+                      onSelected: (_) => controller.setApiGenreFilter(
+                        filter.apiGenre?.id == genre.id ? null : genre,
+                      ),
+                    ),
+                ],
+              )
+            else if (localGenres.isEmpty)
               Text(
                 'Belum ada metadata genre pada koleksi saat ini.',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -510,7 +527,7 @@ class _ExploreFilterSheet extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final genre in genres)
+                  for (final genre in localGenres)
                     ChoiceChip(
                       showCheckmark: false,
                       label: Text(genre),

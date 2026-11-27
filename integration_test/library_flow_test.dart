@@ -121,13 +121,14 @@ void main() {
       await pumpUntilFound(tester, find.text('Komik Integrasi'));
       await tester.tap(find.text('Komik Integrasi'));
       await pumpUntilFound(tester, find.text('2 chapter'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Tambah ke Library'));
       await pumpUntilFound(tester, find.text('Status: Belum dibaca'));
 
       // Library menampilkan komik dengan status awal.
       await tester.pageBack();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
       await openTab(tester, 'Library');
       await pumpUntilFound(tester, find.text('Komik Integrasi'));
       expect(find.text('Belum dibaca'), findsWidgets);
@@ -138,6 +139,7 @@ void main() {
       await pumpUntilFound(tester, find.text('Mulai membaca'));
       await tester.tap(find.text('Mulai membaca'));
       await pumpUntilFound(tester, find.textContaining(' / '));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Kembali'));
 
       // Mulai membaca mengubah status secara otomatis.
@@ -145,11 +147,9 @@ void main() {
 
       // Library mencerminkan status baru dan chapter terakhir dibaca.
       await tester.pageBack();
-      await tester.pump(const Duration(milliseconds: 300));
-      await pumpUntilFound(
-        tester,
-        find.text('Sedang dibaca • Terakhir: Chapter 1'),
-      );
+      await tester.pumpAndSettle();
+      await pumpUntilFound(tester, find.text('Sedang dibaca'));
+      expect(find.text('Terakhir: Chapter 1'), findsOneWidget);
       expect(find.text('Sedang dibaca 1'), findsOneWidget);
 
       // History mencatat komik yang barusan dibaca.

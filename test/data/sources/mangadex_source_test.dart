@@ -41,12 +41,14 @@ ResponseBody _json(Object body, {int status = 200}) {
 }
 
 void main() {
-  test('kapabilitas MangaDex mencakup latest, popular, dan search', () {
+  test('kapabilitas MangaDex mencakup home, latest, popular, search, dan genres', () {
     final source = MangaDexSource();
     expect(source.id, mangaDexSourceId);
+    expect(source.supports(SourceCapability.home), isTrue);
     expect(source.supports(SourceCapability.latest), isTrue);
     expect(source.supports(SourceCapability.popular), isTrue);
     expect(source.supports(SourceCapability.search), isTrue);
+    expect(source.supports(SourceCapability.genres), isTrue);
   });
 
   test('getLatest dan getPopular memetakan manhwa, sampul, dan genre', () async {
@@ -213,5 +215,51 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('getHome, getGenres, dan getComicsByGenre memetakan tag dan rekomendasi', () async {
+    final client = DioClient(baseUrl: 'https://api.mangadex.org');
+    client.dio.httpClientAdapter = _FakeAdapter((options) {
+      if (options.path == '/manga/tag') {
+        return _json({
+          'data': [
+            {
+              'id': 't2',
+              'attributes': {
+                'name': {'en': 'Romance'},
+              },
+            },
+            {
+              'id': 't1',
+              'attributes': {
+                'name': {'en': 'Action'},
+              },
+            },
+          ],
+        });
+      }
+      return _json({
+        'total': 1,
+        'data': [
+          {
+            'id': 'm2',
+            'attributes': {
+              'title': {'en': 'Tower of God'},
+              'originalLanguage': 'ko',
+            },
+          },
+        ],
+      });
+    });
+
+    final source = MangaDexSource(client: client);
+    final genres = await source.getGenres();
+    expect(genres.map((g) => g.name), ['Action', 'Romance']);
+
+    final byGenre = await source.getComicsByGenre('t1', 1);
+    expect(byGenre.items.single.title, 'Tower of God');
+
+    final home = await source.getHome();
+    expect(home.recommended?.single.title, 'Tower of God');
   });
 }

@@ -2,16 +2,16 @@
 
 Jalankan pada build release sebelum menyatakan sebuah versi stabil.
 
-Tanggal:
-Versi:
-Perangkat:
+Tanggal: 2026-11-27
+Versi: 0.1.0+1
+Perangkat: 22101316G
 
 ## Otomatis
 
-- [ ] `flutter analyze` bersih
-- [ ] `flutter test` lulus
-- [ ] `flutter test integration_test -d <id perangkat>` lulus
-- [ ] `flutter build apk --release` berhasil
+- [x] `flutter analyze` bersih
+- [x] `flutter test` lulus (`flutter test -j 2`)
+- [x] `flutter test integration_test -d <id perangkat>` lulus (`+5: All tests passed!`)
+- [x] `flutter build apk --release` berhasil (`build\app\outputs\flutter-apk\app-release.apk`)
 
 ## Uji asap di build release (`flutter run --release`)
 
@@ -33,4 +33,5 @@ Perangkat:
 
 ## Catatan hasil
 
-(isi temuan di sini)
+- Integration test (`app_flow_test.dart` & `library_flow_test.dart`) lulus 5/5 pada `22101316G`.
+- APK release (`0.1.0+1`) berhasil dibangun (`62.0 MB`).

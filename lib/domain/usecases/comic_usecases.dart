@@ -4,6 +4,15 @@ import '../entities/comic.dart';
 import '../entities/source_results.dart';
 import '../repositories/comic_repository.dart';
 
+class GetHomeData {
+  const GetHomeData(this._repository);
+
+  final ComicRepository _repository;
+
+  Future<HomeData> call({required String sourceId}) =>
+      _repository.getHome(sourceId: sourceId);
+}
+
 class GetLatestComics {
   const GetLatestComics(this._repository);
 
@@ -20,6 +29,31 @@ class GetPopularComics {
 
   Future<PagedResult<Comic>> call({required String sourceId, int page = 1}) =>
       _repository.getPopular(sourceId: sourceId, page: page);
+}
+
+class GetGenres {
+  const GetGenres(this._repository);
+
+  final ComicRepository _repository;
+
+  Future<List<Genre>> call({required String sourceId}) =>
+      _repository.getGenres(sourceId: sourceId);
+}
+
+class GetComicsByGenre {
+  const GetComicsByGenre(this._repository);
+
+  final ComicRepository _repository;
+
+  Future<PagedResult<Comic>> call({
+    required String sourceId,
+    required String genreId,
+    int page = 1,
+  }) => _repository.getComicsByGenre(
+    sourceId: sourceId,
+    genreId: genreId,
+    page: page,
+  );
 }
 
 class SearchComics {

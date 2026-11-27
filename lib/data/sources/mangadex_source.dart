@@ -34,10 +34,64 @@ class MangaDexSource extends ComicSource {
 
   @override
   Set<SourceCapability> get capabilities => const {
+    SourceCapability.home,
     SourceCapability.latest,
     SourceCapability.popular,
     SourceCapability.search,
+    SourceCapability.genres,
   };
+
+  @override
+  Future<HomeData> getHome() async {
+    final recommended = await _fetchMangaList(
+      page: 1,
+      queryParameters: const {
+        'order[rating]': 'desc',
+        'hasAvailableChapters': 'true',
+      },
+    );
+    return HomeData(recommended: recommended.items);
+  }
+
+  @override
+  Future<List<Genre>> getGenres() async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/manga/tag',
+      options: _requestOptions,
+    );
+    final body = response.data;
+    final rawList = body?['data'];
+    if (body == null || rawList is! List) {
+      throw const AppException(
+        AppErrorType.parsing,
+        debugMessage: 'Respons tag MangaDex tidak valid',
+      );
+    }
+
+    final genres = <Genre>[];
+    for (final entry in rawList) {
+      if (entry is! Map<String, dynamic>) continue;
+      final tagId = entry['id'] as String?;
+      final attrs = entry['attributes'] as Map<String, dynamic>?;
+      final name = _pickLocalizedText(attrs?['name']);
+      if (tagId != null && tagId.isNotEmpty && name != null) {
+        genres.add(Genre(id: tagId, name: name));
+      }
+    }
+    genres.sort((a, b) => a.name.compareTo(b.name));
+    return genres;
+  }
+
+  @override
+  Future<PagedResult<Comic>> getComicsByGenre(String genreId, int page) =>
+      _fetchMangaList(
+        page: page,
+        queryParameters: {
+          'includedTags[]': [genreId],
+          'order[followedCount]': 'desc',
+          'hasAvailableChapters': 'true',
+        },
+      );
 
   @override
   Future<PagedResult<Comic>> getLatest(int page) => _fetchMangaList(
